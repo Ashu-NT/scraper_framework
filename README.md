@@ -74,33 +74,6 @@ scraper_framework/
 ├─ tests/
 └─ README.md
 ```
----
-
-## 🧩 Site Adapters
-
-Adapters isolate site-specific logic:
-- card location
-- field extraction
-- pagination
-- optional detail selectors
-
-Adding a new site usually means adding **one file**.
-
----
-
-## 🧼 Normalization
-
-Centralized cleanup:
-- ratings (4.7, ★★★★★, Rated 4.7/5)
-- reviews (1,234 / 1.2k)
-- prices ($12.99 / EUR 12,99)
-- phones, URLs, text cleanup
-
----
-
-## 🏗 Factory Layer
-
-All dependency wiring lives in one place, keeping the entrypoint clean and testable.
 
 ---
 
@@ -111,19 +84,15 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
+
 This tells Python to load the package from `src/`.
 
 ---
 
 ## ▶️ Running a Scraping Job
 
-```bash
-scrape configs/jobs/example_static.yaml
-```
-
----
-
 ### Step 1: Create or choose a job config
+
 Job configs live in:
 ```
 configs/jobs/
@@ -152,6 +121,7 @@ sink:
 ```
 
 ### Step 2: Run the job
+
 From the project root:
 
 ```bash
@@ -163,11 +133,26 @@ Output:
 output_books.csv
 ```
 
+### Job Flow
+
+```
+scrape (CLI command)
+  ↓
+scraper_framework.main.main()
+  ↓
+load YAML
+  ↓
+factory builds components
+  ↓
+engine.run(job)
+```
+
 ---
 
 ## 📤 Output options
 
 ### CSV (local file)
+
 ```yaml
 sink:
   type: "csv"
@@ -175,6 +160,7 @@ sink:
 ```
 
 ### Google Sheets
+
 ```yaml
 sink:
   type: "google_sheets"
@@ -186,20 +172,35 @@ sink:
 ```
 
 #### Google Sheets setup (one-time)
+
 1. Create a Google Cloud **Service Account**
 2. Download JSON key → `service_account.json`
 3. Share the target Google Sheet with the service account email
 
 ---
 
+## 🧩 Site Adapters
+
+Adapters isolate site-specific logic:
+- card location
+- field extraction
+- pagination
+- optional detail selectors
+
+Adding a new site usually means adding **one file**.
+
+---
+
 ## 🧩 How to scrape a NEW website (most important section)
 
 ### Step 1: Inspect the site
+
 Open DevTools and identify:
 - the **repeated container** (listing card)
 - where fields live inside that container
 
 ### Step 2: Create a site adapter
+
 Create a new file:
 ```
 src/scraper_framework/adapters/sites/my_site.py
@@ -238,9 +239,8 @@ Register it in:
 src/scraper_framework/adapters/sites/__init__.py
 ```
 
----
-
 ### Step 3: Create a YAML job for that adapter
+
 ```yaml
 job:
   adapter: "my_site"
@@ -249,19 +249,10 @@ job:
 ```
 
 Run it:
+
 ```bash
 scrape configs/jobs/my_site.yaml
 ```
-#### Job Flow
-scrape (CLI command)
-  ↓
-scraper_framework.main.main()
-  ↓
-load YAML
-  ↓
-factory builds components
-  ↓
-engine.run(job)
 
 ---
 
@@ -270,6 +261,7 @@ engine.run(job)
 Some sites hide data (phone, website) on detail pages.
 
 Enable enrichment:
+
 ```yaml
 enrich:
   enabled: true
@@ -277,16 +269,34 @@ enrich:
 ```
 
 Add detail selectors in adapter using:
+
 ```
 detail:<field>
 ```
 
 Example:
+
 ```python
 "detail:phone": ".phone, a[href^='tel:']"
 ```
 
 The engine automatically fetches detail pages and fills missing fields.
+
+---
+
+## 🧼 Normalization
+
+Centralized cleanup:
+- ratings (4.7, ★★★★★, Rated 4.7/5)
+- reviews (1,234 / 1.2k)
+- prices ($12.99 / EUR 12,99)
+- phones, URLs, text cleanup
+
+---
+
+## 🏗 Factory Layer
+
+All dependency wiring lives in one place, keeping the entrypoint clean and testable.
 
 ---
 
@@ -299,6 +309,7 @@ python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 Run a single test file:
+
 ```bash
 python -m unittest tests/test_normalizers.py -v
 ```
@@ -308,6 +319,7 @@ python -m unittest tests/test_normalizers.py -v
 ## 📊 Logging
 
 Logging is configured in:
+
 ```
 configs/logging.yaml
 ```
@@ -320,6 +332,15 @@ Logs show:
 
 ---
 
+## 📊 Reliability
+
+- structured logging
+- retry with backoff
+- rate limiting
+- failure reporting
+
+---
+
 ## 🎯 Typical usage flow
 
 1. Choose a website
@@ -329,15 +350,6 @@ Logs show:
 5. Deliver CSV / Google Sheet
 
 This mirrors real-world client work.
-
----
-
-## 📊 Reliability
-
-- structured logging
-- retry with backoff
-- rate limiting
-- failure reporting
 
 ---
 
