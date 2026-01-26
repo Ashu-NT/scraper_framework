@@ -1,0 +1,29 @@
+job:
+  id: "demo_directory"
+  name: "Demo: Directory (Generic)"
+  adapter: "directory_generic"
+  start_url: "https://example.com/search?q=plumber&city=berlin"
+  max_pages: 3
+  delay_ms: 1200
+  dedupe_mode: "BY_SOURCE_URL"
+  required_fields: ["name", "source_url"]
+  field_schema:
+    - name
+    - category
+    - address
+    - phone
+    - website
+    - rating
+    - reviews
+
+enrich:
+  enabled: true
+  fields: ["phone", "website", "address"]   # optional, defaults used if omitted
+
+sink:
+  type: "google_sheets"
+  sheet_id: "YOUR_SHEET_ID"
+  tab: "Leads"
+  credentials_path: "service_account.json"
+  mode: "upsert"
+  key_field: "source_url"

@@ -1,0 +1,22 @@
+[project]
+name = "scraper-framework"
+version = "0.1.0"
+description = "Config-driven scraping framework (HTML + JSON API) with adapters, normalization, dedupe, sinks."
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31.0",
+  "beautifulsoup4>=4.12.0",
+  "PyYAML>=6.0.1",
+  "gspread>=6.0.0",
+  "google-auth>=2.22.0"
+]
+
+[project.scripts]
+scrape = "scraper_framework.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}

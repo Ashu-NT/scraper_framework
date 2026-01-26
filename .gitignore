@@ -1,0 +1,76 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+ENV/
+env/
+
+# =========================
+# IDEs / Editors
+# =========================
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Runtime output
+# =========================
+output*.csv
+output*.json
+*.xlsx
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+service_account.json
+credentials.json
+
+# =========================
+# Test artifacts
+# =========================
+.coverage
+htmlcov/
+.pytest_cache/
+
+# =========================
+# Temporary / scratch
+# =========================
+tmp/
+temp/
+.cache/
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
