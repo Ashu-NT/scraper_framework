@@ -97,8 +97,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Use repository secret `PYPI_API_TOKEN` for authentication.
+    # Avoid requesting OIDC `id-token` to prevent trusted-publisher OIDC exchange errors
+    # (configure a trusted publisher on PyPI if you prefer OIDC-based publishing).
     permissions:
-      id-token: write
       contents: read
 
     steps:
