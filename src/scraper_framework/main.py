@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sys
 import yaml
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 from scraper_framework.adapters.registry import get as get_adapter
 from scraper_framework.adapters.sites import register_all
@@ -11,8 +13,7 @@ from scraper_framework.utils.logging import setup_logging
 
 DEFAULT_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ScraperFramework/0.1)"}
 
-
-def load_job(path: str) -> tuple[ScrapeJob, str]:
+def load_job(path: str) -> tuple[ScrapeJob, str, dict]:
     """
     Load a scrape job configuration from a YAML file.
 
@@ -20,7 +21,7 @@ def load_job(path: str) -> tuple[ScrapeJob, str]:
         path: Path to the YAML configuration file.
 
     Returns:
-        A tuple of (ScrapeJob, adapter_key).
+        A tuple of (ScrapeJob, adapter_key, schedule_config).
     """
     with open(path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
@@ -28,6 +29,7 @@ def load_job(path: str) -> tuple[ScrapeJob, str]:
     job_cfg = cfg["job"]
     sink_cfg = cfg.get("sink", {})
     enrich_cfg = cfg.get("enrich", {})
+    schedule_cfg = cfg.get("schedule", {})
 
     start = RequestSpec(
         url=job_cfg["start_url"],
@@ -56,7 +58,50 @@ def load_job(path: str) -> tuple[ScrapeJob, str]:
     )
 
     adapter_key = job_cfg["adapter"]
-    return job, adapter_key
+    return job, adapter_key, schedule_cfg
+
+
+def run_one(job: ScrapeJob, adapter_key: str) -> None:
+    """Run a single scraping job."""
+    setup_logging("configs/logging.yaml")
+    register_all()
+
+    adapter = get_adapter(adapter_key)
+
+    factory = ComponentFactory(http_timeout_s=30)
+    built = factory.build(job, adapter)
+
+    report = built.engine.run(job)
+    print("DONE:", report)
+
+
+def run_schedule(job: ScrapeJob, adapter_key: str, schedule_cfg: dict, job_path: str) -> None:
+    """Run a scheduled scraping job."""
+    if not schedule_cfg:
+        print("Error: No schedule configuration found in job file")
+        raise SystemExit(1)
+
+    # Set up scheduler
+    scheduler = BlockingScheduler()
+
+    # Add job to scheduler
+    interval_hours = schedule_cfg.get("interval_hours", 24)
+    print(f"Scheduling job every {interval_hours} hours")
+    trigger = IntervalTrigger(hours=interval_hours)
+
+    scheduler.add_job(
+        run_one,
+        trigger=trigger,
+        args=[job, adapter_key],
+        id=f"scrape_{job.id}",
+        name=f"Scheduled scrape: {job.name}"
+    )
+
+    print(f"Starting scheduled scraper for job '{job.name}' (every {interval_hours} hours)")
+    try:
+        scheduler.start()
+    except KeyboardInterrupt:
+        print("Scheduler stopped by user")
 
 
 def main() -> None:
@@ -65,17 +110,19 @@ def main() -> None:
         print("Usage: scrape configs/jobs/<job>.yaml")
         raise SystemExit(2)
 
-    setup_logging("configs/logging.yaml")
-    register_all()
+    job_path = sys.argv[1]
+    print(f"Loading job from {job_path}")
 
-    job, adapter_key = load_job(sys.argv[1])
-    adapter = get_adapter(adapter_key)
+    # Load job configuration
+    job, adapter_key, schedule_cfg = load_job(job_path)
 
-    factory = ComponentFactory(http_timeout_s=30)
-    built = factory.build(job, adapter)
-
-    report = built.engine.run(job)
-    print("DONE:", report)
+    # Determine mode based on schedule config presence
+    if schedule_cfg:
+        print("Running in scheduled mode")
+        run_schedule(job, adapter_key, schedule_cfg, job_path)
+    else:
+        print("Running in one-time mode")
+        run_one(job, adapter_key)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 # parse/cards.py
 from __future__ import annotations
 from typing import Any, Optional, Protocol
-from bs4 import BeautifulSoup
 
 class Card(Protocol):
     """Protocol for card elements."""

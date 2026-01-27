@@ -1,7 +1,5 @@
 from __future__ import annotations
-from typing import Optional
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 
 from scraper_framework.enrich.base import Enricher
 from scraper_framework.core.models import Record, RequestSpec

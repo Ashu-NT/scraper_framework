@@ -294,6 +294,28 @@ Centralized cleanup:
 
 ---
 
+## ⏰ Scheduled Scraping
+
+For recurring data collection, add a `schedule` section to your job YAML:
+
+```yaml
+job:
+  # ... job config ...
+
+schedule:
+  interval_hours: 24  # Run every 24 hours
+```
+
+Run the scheduled job:
+
+```bash
+scrape configs/jobs/scheduled_job.yaml
+```
+
+The framework automatically detects scheduled jobs and runs them continuously. Stop with Ctrl+C.
+
+---
+
 ## 🏗 Factory Layer
 
 All dependency wiring lives in one place, keeping the entrypoint clean and testable.
@@ -341,12 +363,52 @@ Logs show:
 
 ---
 
+## 🚀 GitHub Actions Integration
+
+Run scheduled scraping jobs automatically using GitHub Actions:
+
+### Automated Scheduling
+
+The `scheduled-scraping.yml` workflow runs on a cron schedule:
+
+```yaml
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+```
+
+### Manual Execution
+
+Use `manual-scraping.yml` for on-demand runs:
+
+- Go to Actions tab → Manual Scraping → Run workflow
+- Choose your job configuration file
+- Select execution mode (one-time or scheduled)
+
+### Setup Requirements
+
+1. **Google Sheets (optional)**: Add `GOOGLE_SHEETS_CREDENTIALS` secret
+2. **Schedule customization**: Edit cron expression in workflow file
+3. **Job configurations**: Create YAML files in `configs/jobs/`
+
+See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md) for detailed setup instructions.
+
+### Benefits
+
+- ✅ No server maintenance
+- ✅ Automatic result commits
+- ✅ Artifact storage for logs
+- ✅ Free for public repos
+- ✅ Manual override capability
+
+---
+
 ## 🎯 Typical usage flow
 
 1. Choose a website
 2. Write a small adapter (selectors only)
 3. Create a YAML job
-4. Run the job
+4. Run the job (one-time or scheduled)
 5. Deliver CSV / Google Sheet
 
 This mirrors real-world client work.

@@ -1,6 +1,6 @@
 job:
-  id: "books_csv"
-  name: "BooksToScrape to CSV"
+  id: "demo_books_scheduled"
+  name: "Demo: BooksToScrape (Scheduled)"
   adapter: "books_toscrape"
   start_url: "https://books.toscrape.com/catalogue/page-1.html"
   max_pages: 2
@@ -9,12 +9,10 @@ job:
   required_fields: ["name", "source_url"]
   field_schema: ["name", "price", "rating"]
 
-enrich:
-  enabled: false
-
 sink:
   type: "csv"
-  path: "output_books.csv"
+  path: "output_books_scheduled.csv"
 
+# Schedule configuration for automated scraping
 schedule:
-  interval_hours: 0.025  # Run every 1.5 minutes
+  interval_hours: 24  # Run every 24 hours

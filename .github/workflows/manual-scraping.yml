@@ -1,0 +1,55 @@
+name: Manual Scraping
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_config:
+        description: 'Job configuration file to run'
+        required: true
+        default: 'configs/jobs/example_static.yaml'
+        type: string
+      run_mode:
+        description: 'Execution mode'
+        required: false
+        default: 'one-time'
+        type: choice
+        options:
+        - one-time
+        - scheduled
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Run scraping job
+      run: |
+        JOB_CONFIG="${{ github.event.inputs.job_config }}"
+        echo "Running scraping job: $JOB_CONFIG"
+        python -m scraper_framework.main "$JOB_CONFIG"
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+
+    - name: Upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: scraping-results-${{ github.run_number }}
+        path: |
+          output_*.csv
+          output_*.json
+          *.csv
+          *.json
+        retention-days: 7
