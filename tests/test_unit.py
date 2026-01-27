@@ -4,11 +4,11 @@ Fast, focused tests for individual components.
 """
 
 import unittest
-from unittest.mock import Mock, patch
-from src.scraper_framework.core.models import Record, ValidationResult
+from unittest.mock import Mock
+from src.scraper_framework.core.models import Record
 from src.scraper_framework.transform.validators import RequiredFieldsValidator
-from src.scraper_framework.transform.dedupe import DedupeBySourceUrl, DedupeByHash
-from src.scraper_framework.config_models import ScraperConfig, CsvSinkConfig, GoogleSheetsSinkConfig
+from src.scraper_framework.transform.dedupe import UrlDedupeStrategy, HashDedupeStrategy
+from src.scraper_framework.config_models import ScraperConfig
 from src.scraper_framework.adapters.registry import register, get, get_registered_adapters
 
 
@@ -61,40 +61,51 @@ class TestDedupeStrategies(unittest.TestCase):
     """Test deduplication strategies."""
 
     def setUp(self):
-        self.url_deduper = DedupeBySourceUrl()
-        self.hash_deduper = DedupeByHash()
+        self.url_deduper = UrlDedupeStrategy()
+        self.hash_deduper = HashDedupeStrategy()
 
     def test_dedupe_by_url_unique(self):
         """Test URL deduplication with unique URLs."""
         record1 = Record(id="1", source_url="https://example.com/1", scraped_at_utc="t", fields={})
         record2 = Record(id="2", source_url="https://example.com/2", scraped_at_utc="t", fields={})
 
-        self.assertTrue(self.url_deduper.should_keep(record1))
-        self.assertTrue(self.url_deduper.should_keep(record2))
+        result = self.url_deduper.dedupe([record1, record2])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].source_url, "https://example.com/1")
+        self.assertEqual(result[1].source_url, "https://example.com/2")
 
     def test_dedupe_by_url_duplicate(self):
         """Test URL deduplication with duplicate URLs."""
         record1 = Record(id="1", source_url="https://example.com/1", scraped_at_utc="t", fields={})
         record2 = Record(id="2", source_url="https://example.com/1", scraped_at_utc="t", fields={})  # duplicate URL
 
-        self.assertTrue(self.url_deduper.should_keep(record1))
-        self.assertFalse(self.url_deduper.should_keep(record2))
+        result = self.url_deduper.dedupe([record1, record2])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].source_url, "https://example.com/1")
+        # First occurrence should be kept
+        self.assertEqual(result[0].id, "1")
 
     def test_dedupe_by_hash_unique(self):
         """Test hash deduplication with unique content."""
-        record1 = Record(id="1", source_url="u", scraped_at_utc="t", fields={"name": "A", "price": "10"})
-        record2 = Record(id="2", source_url="u", scraped_at_utc="t", fields={"name": "B", "price": "20"})
+        # Records with different source URLs should have different hashes
+        record1 = Record(id="1", source_url="https://example.com/1", scraped_at_utc="t", fields={"name": "A", "price": "10"})
+        record2 = Record(id="2", source_url="https://example.com/2", scraped_at_utc="t", fields={"name": "B", "price": "20"})
 
-        self.assertTrue(self.hash_deduper.should_keep(record1))
-        self.assertTrue(self.hash_deduper.should_keep(record2))
+        result = self.hash_deduper.dedupe([record1, record2])
+        self.assertEqual(len(result), 2)
+        # Both should be preserved since content (hash) is different
+        ids = {r.id for r in result}
+        self.assertEqual(ids, {"1", "2"})
 
     def test_dedupe_by_hash_duplicate(self):
         """Test hash deduplication with duplicate content."""
-        record1 = Record(id="1", source_url="u", scraped_at_utc="t", fields={"name": "A", "price": "10"})
-        record2 = Record(id="2", source_url="u", scraped_at_utc="t", fields={"name": "A", "price": "10"})  # duplicate content
+        record1 = Record(id="1", source_url="https://example.com/1", scraped_at_utc="t", fields={"name": "A", "price": "10"})
+        record2 = Record(id="2", source_url="https://example.com/1", scraped_at_utc="t", fields={"name": "A", "price": "10"})  # duplicate content
 
-        self.assertTrue(self.hash_deduper.should_keep(record1))
-        self.assertFalse(self.hash_deduper.should_keep(record2))
+        result = self.hash_deduper.dedupe([record1, record2])
+        self.assertEqual(len(result), 1)
+        # First occurrence should be kept
+        self.assertEqual(result[0].id, "1")
 
 
 class TestConfigValidation(unittest.TestCase):
