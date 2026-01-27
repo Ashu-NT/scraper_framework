@@ -44,7 +44,7 @@ jobs:
         PYTHONPATH: ${{ github.workspace }}/src
 
     - name: Upload results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: scraping-results-${{ github.run_number }}
         path: |
