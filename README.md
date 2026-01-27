@@ -323,18 +323,91 @@ All dependency wiring lives in one place, keeping the entrypoint clean and testa
 
 ---
 
-## 🧪 Running tests
+## 🛡️ Configuration Validation
 
-From the project root:
+The framework uses **Pydantic** for robust YAML configuration validation with clear error messages:
+
+### Benefits
+
+- **🛡️ Runtime Safety**: Catch configuration errors before scraping starts
+- **📝 Clear Messages**: Field-specific error messages with suggestions
+- **🔧 Developer Experience**: IDE autocompletion and type hints
+- **📚 Self-Documenting**: Models serve as configuration documentation
+- **🚀 Production Ready**: Prevents runtime failures from bad configs
+
+### Validation Features
+
+- ✅ **Required fields** validation
+- ✅ **Type checking** (strings, integers, enums)
+- ✅ **URL validation** for start URLs
+- ✅ **Enum validation** for dedupe modes and sink types
+- ✅ **Range validation** for delays and page limits
+- ✅ **Cross-field validation** (enrich fields must be in schema)
+- ✅ **Clear error messages** with field paths
+
+### Validation Features
+
+- ✅ **Required fields** validation
+- ✅ **Type checking** (strings, integers, enums)
+- ✅ **URL validation** for start URLs
+- ✅ **Enum validation** for dedupe modes and sink types
+- ✅ **Range validation** for delays and page limits
+- ✅ **Cross-field validation** (enrich fields must be in schema)
+- ✅ **Clear error messages** with field paths
+
+### Testing Validation
+
+Run the validation test script to see examples:
 
 ```bash
-python -m unittest discover -s tests -p "test_*.py" -v
+python test_validation.py
 ```
 
-Run a single test file:
+This demonstrates:
+- ✅ Valid configurations pass
+- ❌ Invalid configurations fail with clear messages
+- 🔍 Various validation scenarios (missing fields, invalid enums, etc.)
 
+**Example Error Output:**
 ```bash
-python -m unittest tests/test_normalizers.py -v
+❌ Configuration validation failed:
+  job.dedupe_mode: Input should be 'BY_SOURCE_URL' or 'BY_HASH'
+  job.max_pages: Input should be less than or equal to 1000
+  sink.type: Unknown sink type: 'invalid'. Must be "csv" or "google_sheets"
+```
+
+### Configuration Schema
+
+```yaml
+job:
+  id: string (required)           # Unique job identifier
+  name: string (required)         # Human-readable name
+  adapter: string (required)      # Adapter to use
+  start_url: url (required)       # Must be http/https
+  max_pages: int (1-1000)         # Default: 5
+  delay_ms: int (0-60000)         # Default: 800
+  dedupe_mode: enum               # BY_SOURCE_URL or BY_HASH
+  required_fields: [string]       # Default: ["name", "source_url"]
+  field_schema: [string]          # Expected output fields
+
+sink:  # Required
+  type: enum (csv|google_sheets)
+  # CSV options
+  path: string
+  # Google Sheets options
+  sheet_id: string
+  tab: string
+  credentials_path: string
+  mode: enum (append|replace|upsert)
+  key_field: string  # Required for upsert
+
+enrich:  # Optional
+  enabled: bool
+  fields: [string]  # Must be in field_schema if enabled
+
+schedule:  # Optional
+  enabled: bool
+  interval_hours: int (1-168)
 ```
 
 ---

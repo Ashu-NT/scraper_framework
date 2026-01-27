@@ -18,4 +18,4 @@ sink:
 
 schedule:
   enabled: false
-  interval_hours: 0.025  # Run every 1.5 minutes
+  interval_hours: 24  # Run every 24 hours

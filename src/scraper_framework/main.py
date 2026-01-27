@@ -1,67 +1,36 @@
 from __future__ import annotations
 
 import sys
-import yaml
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from pydantic import ValidationError
 
 from scraper_framework.adapters.registry import get as get_adapter
 from scraper_framework.adapters.sites import register_all
 from scraper_framework.core.factory import ComponentFactory
-from scraper_framework.core.models import ScrapeJob, RequestSpec, DedupeMode, EnrichConfig
+from scraper_framework.core.models import ScrapeJob
+from scraper_framework.config_models import load_and_validate_config, config_to_job_objects
 from scraper_framework.utils.logging import setup_logging
 
 DEFAULT_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ScraperFramework/0.1)"}
 
 def load_job(path: str) -> tuple[ScrapeJob, str, dict]:
     """
-    Load a scrape job configuration from a YAML file.
+    Load and validate a scrape job configuration from a YAML file.
 
     Args:
         path: Path to the YAML configuration file.
 
     Returns:
         A tuple of (ScrapeJob, adapter_key, schedule_config).
+
+    Raises:
+        ValidationError: If configuration is invalid
+        FileNotFoundError: If config file doesn't exist
+        ValueError: If YAML is malformed
     """
-    with open(path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
-    job_cfg = cfg["job"]
-    sink_cfg = cfg.get("sink", {})
-    enrich_cfg = cfg.get("enrich", {})
-    
-    schedule_cfg = cfg.get("schedule", {})
-    enabled_schedule_cfg = bool(schedule_cfg.get("enabled", False))
-    
-
-    start = RequestSpec(
-        url=job_cfg["start_url"],
-        method=job_cfg.get("method", "GET"),
-        headers={**DEFAULT_HEADERS, **job_cfg.get("headers", {})},
-        params=job_cfg.get("params", {}),
-        body=job_cfg.get("body"),
-    )
-
-    enrich = EnrichConfig(
-        enabled=bool(enrich_cfg.get("enabled", False)),
-        fields=set(enrich_cfg.get("fields", [])),
-    )
-
-    job = ScrapeJob(
-        id=job_cfg["id"],
-        name=job_cfg["name"],
-        start=start,
-        max_pages=int(job_cfg.get("max_pages", 5)),
-        delay_ms=int(job_cfg.get("delay_ms", 800)),
-        required_fields=set(job_cfg.get("required_fields", ["name", "source_url"])),
-        dedupe_mode=DedupeMode(job_cfg.get("dedupe_mode", "BY_SOURCE_URL")),
-        field_schema=set(job_cfg.get("field_schema", [])),
-        enrich=enrich,
-        sink_config=sink_cfg,
-    )
-
-    adapter_key = job_cfg["adapter"]
-    return job, adapter_key, enabled_schedule_cfg
+    config = load_and_validate_config(path)
+    return config_to_job_objects(config)
 
 
 def run_one(job: ScrapeJob, adapter_key: str) -> None:
@@ -116,8 +85,16 @@ def main() -> None:
     job_path = sys.argv[1]
     print(f"Loading job from {job_path}")
 
-    # Load job configuration
-    job, adapter_key, schedule_cfg = load_job(job_path)
+    try:
+        # Load and validate job configuration
+        job, adapter_key, schedule_cfg = load_job(job_path)
+    except ValidationError as e:
+        print(f"❌ Configuration validation failed:")
+        print(str(e))
+        raise SystemExit(1)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"❌ Configuration loading failed: {e}")
+        raise SystemExit(1)
 
     # Determine mode based on schedule config presence
     if schedule_cfg:
