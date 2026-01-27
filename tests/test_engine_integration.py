@@ -9,7 +9,7 @@ import tempfile
 import os
 from pathlib import Path
 
-from src.scraper_framework.core.engine import ScrapingEngine
+from src.scraper_framework.core.engine import ScrapeEngine
 from src.scraper_framework.core.models import ScrapingConfig, JobConfig
 from src.scraper_framework.http.client import HttpClient
 from src.scraper_framework.http.response import HttpResponse
@@ -83,7 +83,7 @@ class TestEngineIntegration(unittest.TestCase):
         )
 
         # Create engine
-        engine = ScrapingEngine(scraping_config)
+        engine = ScrapeEngine(scraping_config)
 
         # Run the scraping
         results = engine.run()
@@ -137,7 +137,7 @@ class TestEngineIntegration(unittest.TestCase):
         )
 
         scraping_config = ScrapingConfig(jobs=[job_config])
-        engine = ScrapingEngine(scraping_config)
+        engine = ScrapeEngine(scraping_config)
 
         # Run the scraping
         results = engine.run()
@@ -164,7 +164,7 @@ class TestEngineIntegration(unittest.TestCase):
         )
 
         scraping_config = ScrapingConfig(jobs=[job_config])
-        engine = ScrapingEngine(scraping_config)
+        engine = ScrapeEngine(scraping_config)
 
         # Run the scraping
         results = engine.run()
@@ -216,7 +216,7 @@ class TestEngineIntegration(unittest.TestCase):
         )
 
         scraping_config = ScrapingConfig(jobs=[job1_config, job2_config])
-        engine = ScrapingEngine(scraping_config)
+        engine = ScrapeEngine(scraping_config)
 
         # Run the scraping
         results = engine.run()
@@ -236,7 +236,7 @@ class TestEngineIntegration(unittest.TestCase):
         invalid_config = ScrapingConfig(jobs=[])
 
         with self.assertRaises(ValueError):
-            ScrapingEngine(invalid_config)
+            ScrapeEngine(invalid_config)
 
 
 if __name__ == '__main__':

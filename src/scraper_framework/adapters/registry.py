@@ -13,3 +13,7 @@ def get(key: str) -> SiteAdapter:
     if key not in _ADAPTERS:
         raise KeyError(f"Adapter not registered: {key}")
     return _ADAPTERS[key]
+
+def get_registered_adapters():
+    """Get all registered adapters."""
+    return list(_ADAPTERS.values())

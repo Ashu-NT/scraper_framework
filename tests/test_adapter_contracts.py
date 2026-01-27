@@ -5,10 +5,15 @@ Ensures all adapters satisfy basic expectations.
 
 import unittest
 from src.scraper_framework.adapters.registry import get_registered_adapters
+from src.scraper_framework.adapters.sites import register_all
 
 
 class TestAdapterContracts(unittest.TestCase):
     """Test that all adapters satisfy their contracts."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        register_all()  # Register all adapters before testing
 
     def test_all_adapters_have_unique_keys(self):
         """Test that all registered adapters have unique, non-empty keys."""
