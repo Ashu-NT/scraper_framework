@@ -303,6 +303,7 @@ job:
   # ... job config ...
 
 schedule:
+  enabled: true
   interval_hours: 24  # Run every 24 hours
 ```
 
