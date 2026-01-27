@@ -51,6 +51,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .[dev]
         python -c "import flake8, mypy; print('Lint dependencies installed successfully')"
+
+    - name: Run linting
       run: |
         # stop the build if there are Python syntax errors or undefined names
         python -m flake8 src/scraper_framework tests --count --select=E9,F63,F7,F82 --show-source --statistics
