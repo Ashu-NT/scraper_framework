@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from scraper_framework.config_models import load_and_validate_config, ValidationError
+from scraper_framework.config_models import load_and_validate_config
 
 def test_valid_config():
     """Test that valid configs pass validation."""
@@ -98,7 +98,7 @@ def test_invalid_configs():
         try:
             load_and_validate_config(temp_path)
             print("❌ Should have failed validation!")
-        except ValidationError as e:
+        except ValueError as e:
             print("✅ Correctly caught validation error:")
             print(f"   {str(e).split(':', 1)[1].strip()}")
         except Exception as e:
