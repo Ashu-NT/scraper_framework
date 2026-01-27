@@ -92,28 +92,24 @@ jobs:
       with:
         name: dist
         path: dist/
-
-  release:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    # Use repository secret `PYPI_API_TOKEN` for authentication.
-    # Avoid requesting OIDC `id-token` to prevent trusted-publisher OIDC exchange errors
-    # (configure a trusted publisher on PyPI if you prefer OIDC-based publishing).
-    permissions:
-      contents: read
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: dist
-        path: dist/
-
-    - name: Publish to PyPI
-      if: github.repository == 'Ashu-NT/scraper_framework'  #  repo name
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_TOKEN }}
+  # release:
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   # Use OIDC-based trusted publishing: require id-token write permission
+  #   permissions:
+  #     id-token: write
+  #     contents: read
+  #
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #
+  #   - name: Download build artifacts
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: dist
+  #       path: dist/
+  #   
+  #   - name: Publish to PyPI
+  #     if: github.repository == 'Ashu-NT/scraper_framework'  # repo name
+  #     uses: pypa/gh-action-pypi-publish@release/v1
