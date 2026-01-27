@@ -214,7 +214,7 @@ class MySiteAdapter(SiteAdapter):
         return "my_site"
 
     def mode(self):
-        return "STATIC_HTML"
+        return "STATIC_HTML" # or JSON_API
 
     def card_locator(self):
         return ".listing-card"
