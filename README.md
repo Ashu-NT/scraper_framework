@@ -224,7 +224,10 @@ class MySiteAdapter(SiteAdapter):
             "name": "h2",
             "price": ".price",
             "rating": ".rating",
-            "detail:phone": ".phone",
+            # Detail fields (used during enrichment)
+            "detail:phone": ".contact-phone, a[href^='tel:']",
+            "detail:website": ".website-link",
+            "detail:address": ".full-address",
         }.get(field)
 
     def extract_source_url(self, card, page):
@@ -245,7 +248,11 @@ src/scraper_framework/adapters/sites/__init__.py
 job:
   adapter: "my_site"
   start_url: "https://example.com/search"
-  field_schema: ["name", "price", "rating"]
+  field_schema: ["name", "price", "rating", "phone", "website", "address"]
+
+enrich:
+  enabled: true
+  fields: ["phone", "website", "address"]  # These require detail page scraping
 ```
 
 Run it:
@@ -260,27 +267,40 @@ scrape configs/jobs/my_site.yaml
 
 Some sites hide data (phone, website) on detail pages.
 
-Enable enrichment:
+### How Enrichment Works
 
-```yaml
-enrich:
-  enabled: true
-  fields: ["phone", "website"]
-```
+1. **Enable enrichment** in your job config:
+   ```yaml
+   enrich:
+     enabled: true
+     fields: ["phone", "website", "availability"]
+   ```
 
-Add detail selectors in adapter using:
+2. **Define detail selectors** in your adapter using the `detail:` prefix:
+   ```python
+   def field_locator(self, field: str) -> Optional[str]:
+       return {
+           "name": "h2",
+           "phone": ".phone",           # Used on listing page
+           "detail:phone": ".contact-phone, a[href^='tel:']",  # Used on detail page
+           "detail:website": ".website-link",
+           "detail:availability": ".availability-status",
+       }.get(field)
+   ```
 
-```
-detail:<field>
-```
+### Important: Detail Field Naming Convention
 
-Example:
+**All fields that require enrichment MUST be defined in the adapter with the `detail:` prefix.**
 
-```python
-"detail:phone": ".phone, a[href^='tel:']"
-```
+- `"phone"` - selector used on the listing page
+- `"detail:phone"` - selector used on the detail page during enrichment
 
-The engine automatically fetches detail pages and fills missing fields.
+The engine automatically:
+- Scrapes listing pages first
+- Identifies missing fields from `enrich.fields`
+- Fetches detail pages for records with missing data
+- Uses `detail:` prefixed selectors to extract missing fields
+- Merges the data back into the original records
 
 ---
 
@@ -403,7 +423,7 @@ sink:  # Required
 
 enrich:  # Optional
   enabled: bool
-  fields: [string]  # Must be in field_schema if enabled
+  fields: [string]  # Must be in field_schema if enabled, require detail:* selectors in adapter
 
 schedule:  # Optional
   enabled: bool

@@ -41,6 +41,7 @@ class GenericDirectoryAdapter(SiteAdapter):
             "website": "a.website, a[href^='http']",
             "rating": ".rating, .stars, [data-rating]",
             "reviews": ".reviews, [data-reviews]",
+            "detail:availability": ".availability", #Fields prefixed with detail: are only used during enrichment
         }
         return mapping.get(field)
 
