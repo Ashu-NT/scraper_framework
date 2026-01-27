@@ -44,10 +44,10 @@ jobs:
         pip install -e .
 
     - name: Set up Google Sheets authentication (if needed)
-      if: contains(vars.GOOGLE_SHEETS_CREDENTIALS)
+      if: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS != '' }}
       run: |
         echo "${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}" > service_account.json
-        export GOOGLE_APPLICATION_CREDENTIALS=service_account.json
+        echo "GOOGLE_APPLICATION_CREDENTIALS=service_account.json" >> $GITHUB_ENV
       env:
         GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
 
