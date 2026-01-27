@@ -54,6 +54,7 @@ job:
   # ... job configuration ...
 
 schedule:
+  enabled: true
   interval_hours: 24
 ```
 
