@@ -17,4 +17,5 @@ sink:
   path: "output_books.csv"
 
 schedule:
+  enabled: false
   interval_hours: 0.025  # Run every 1.5 minutes

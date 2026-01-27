@@ -29,7 +29,10 @@ def load_job(path: str) -> tuple[ScrapeJob, str, dict]:
     job_cfg = cfg["job"]
     sink_cfg = cfg.get("sink", {})
     enrich_cfg = cfg.get("enrich", {})
+    
     schedule_cfg = cfg.get("schedule", {})
+    enabled_schedule_cfg = bool(schedule_cfg.get("enabled", False))
+    
 
     start = RequestSpec(
         url=job_cfg["start_url"],
@@ -58,7 +61,7 @@ def load_job(path: str) -> tuple[ScrapeJob, str, dict]:
     )
 
     adapter_key = job_cfg["adapter"]
-    return job, adapter_key, schedule_cfg
+    return job, adapter_key, enabled_schedule_cfg
 
 
 def run_one(job: ScrapeJob, adapter_key: str) -> None:
