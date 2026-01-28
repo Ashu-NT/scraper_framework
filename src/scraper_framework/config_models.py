@@ -7,8 +7,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from enum import Enum
-
-
+import yaml
+from scraper_framework.core.models import ScrapeJob, RequestSpec, EnrichConfig as CoreEnrichConfig
+    
 class DedupeMode(str, Enum):
     """Enumeration for deduplication modes."""
     BY_SOURCE_URL = "BY_SOURCE_URL"
@@ -161,7 +162,6 @@ def load_and_validate_config(config_path: str) -> ScraperConfig:
         FileNotFoundError: If config file doesn't exist
         yaml.YAMLError: If YAML is malformed
     """
-    import yaml
 
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -194,7 +194,6 @@ def config_to_job_objects(config: ScraperConfig) -> tuple:
     Returns:
         Tuple of (ScrapeJob, adapter_key, schedule_config_dict)
     """
-    from scraper_framework.core.models import ScrapeJob, RequestSpec, EnrichConfig as CoreEnrichConfig
 
     # Convert job config
     start = RequestSpec(
