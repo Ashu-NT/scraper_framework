@@ -1,6 +1,7 @@
 # parse/cards.py
 from __future__ import annotations
 from typing import Any, Optional, Protocol
+from bs4 import BeautifulSoup
 
 class Card(Protocol):
     """Protocol for card elements."""
@@ -15,7 +16,7 @@ class HtmlCard:
     """Card implementation for HTML elements."""
 
     def __init__(self, root: Any):
-        self._root = root
+        self._root: BeautifulSoup = root
 
     def raw(self) -> Any:
         """Return the raw element."""
