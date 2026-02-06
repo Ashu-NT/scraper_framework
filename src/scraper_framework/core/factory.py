@@ -12,6 +12,7 @@ from scraper_framework.fetch.strategies import (
     JsonApiFetchStrategy,
     StaticHtmlFetchStrategy,
 )
+
 from scraper_framework.http.client import RequestsHttpClient
 from scraper_framework.parse.parsers import HtmlPageParser, JsonPageParser, PageParser
 from scraper_framework.sinks.csv_sink import CsvSink
@@ -96,6 +97,15 @@ class ComponentFactory:
         mode = (adapter.mode() or "").upper()
         if mode == "JSON_API":
             return JsonApiFetchStrategy(client)
+
+        # For dynamic pages rendered by JavaScript, use a Selenium-backed HTTP client.
+        if mode == "DYNAMIC":
+            # Import locally to avoid requiring selenium unless used.
+            from scraper_framework.http.selenium_client import SeleniumHttpClient
+
+            selenium_client = SeleniumHttpClient(timeout_s=self.http_timeout_s)
+            return StaticHtmlFetchStrategy(selenium_client)
+
         return StaticHtmlFetchStrategy(client)
 
     def _parser(self, adapter: SiteAdapter) -> PageParser:
