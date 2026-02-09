@@ -1,13 +1,13 @@
 job:
   id: "demo_dynamic"
   name: "Demo: Dynamic Content with Selenium"
-  adapter: "dynamic_example"
-  start_url: "https://example.com/products"
+  adapter: "dynamic_test"
+  start_url: "https://www.livescore.com/en"
   method: "GET"
   # Pass dynamic-specific parameters to SeleniumHttpClient
   params: 
     window_enabled: true         # -------- WINDOW --------
-    window_size: "1366,768"
+    window_size: "1366,1200"
 
     cookies_enabled: true        # -------- COOKIES --------
     cookie_action: "reject"       # or "accept" or "auto"
@@ -17,19 +17,24 @@ job:
     wait_selector: "a[href*='-vs-']"
     wait_time: 15
 
-    scroll_enabled: true    # -------- SCROLL --------
+    scroll_enabled: False   # -------- SCROLL --------
     scroll: true
-    scroll_steps: 10
-    scroll_pause: 0.8
+    scroll_until_selector: "a[href*='-vs-']"
+    scroll_until_count: 50
+
+    scroll_chunk: 600          # small scroll
+    scroll_pause: 1.5         # pause after scrolling
+    scroll_idle_wait: 3.0     # wait when new items appear
+    scroll_steps: 20           # safety cap
     scroll_end_wait: 1.5
 
     clicks_enabled: false   # click_selector: ".load-more"
 
-  max_pages: 2
+  max_pages: 1
   delay_ms: 1000
   dedupe_mode: "BY_SOURCE_URL"
-  required_fields: ["name", "source_url"]
-  field_schema: ["name", "price", "description", "url"]
+  required_fields: ["Home_team", "source_url"]
+  field_schema: ["Home_team", "Away_team", "Home_score", "Away_score"]
 
 sink:
   type: "csv"
