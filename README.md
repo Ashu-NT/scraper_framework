@@ -87,6 +87,16 @@ pip install -e .
 
 This tells Python to load the package from `src/`.
 
+### Optional: Selenium for Dynamic Content
+
+To scrape JavaScript-heavy sites:
+
+```bash
+pip install selenium webdriver-manager
+```
+
+Selenium is **optional** — install only if you need to scrape sites with dynamic content.
+
 ---
 
 ## ▶️ Running a Scraping Job
@@ -214,7 +224,7 @@ class MySiteAdapter(SiteAdapter):
         return "my_site"
 
     def mode(self):
-        return "STATIC_HTML" # or JSON_API
+        return "STATIC_HTML" # or JSON_API or DYNAMIC
 
     def card_locator(self):
         return ".listing-card"
@@ -260,6 +270,111 @@ Run it:
 ```bash
 scrape configs/jobs/my_site.yaml
 ```
+
+---
+
+## 🌐 Scraping Dynamic Content with Selenium
+
+Some websites render content **dynamically** using JavaScript. The framework supports this via **Selenium WebDriver**.
+
+### Prerequisites
+
+First, install Selenium dependencies:
+
+```bash
+pip install selenium webdriver-manager
+```
+
+`webdriver-manager` automatically manages ChromeDriver downloads — no manual setup required.
+
+### When to Use DYNAMIC Mode
+
+Use `mode: DYNAMIC` when:
+- Content is rendered client-side (JavaScript)
+- Data is not present in the initial HTML response
+- Data loads on user interactions (scrolls, clicks)
+- Site uses modern frameworks (React, Vue, Angular)
+
+### Creating a Dynamic Adapter
+
+Return `"DYNAMIC"` from `mode()`:
+
+```python
+class MyDynamicAdapter(SiteAdapter):
+    def key(self):
+        return "my_dynamic_site"
+
+    def mode(self):
+        return "DYNAMIC"  # Triggers Selenium-based fetching
+
+    def card_locator(self):
+        return ".product-item"  # Same as static HTML adapters
+
+    def field_locator(self, field):
+        return {
+            "name": ".product-name",
+            "price": ".product-price",
+        }.get(field)
+
+    def extract_source_url(self, card, page):
+        return card.get_attr("a", "href")
+
+    def next_request(self, page, current):
+        # Same pagination logic as STATIC_HTML
+        return None
+```
+
+### Dynamic Parameters in Job Config
+
+Pass Selenium options via the `params` field:
+
+```yaml
+job:
+  adapter: "my_dynamic_site"
+  start_url: "https://example.com/products"
+  params:
+    wait_selector: ".product-item"  # CSS selector to wait for
+    wait_time: 10                   # Max seconds to wait
+    click_selectors:                # (Optional) selectors to click before scraping
+      - "button.load-more"
+      - "a.expand"
+  max_pages: 2
+  delay_ms: 1000
+  field_schema: ["name", "price"]
+
+sink:
+  type: "csv"
+  path: "output_dynamic.csv"
+```
+
+**Supported params:**
+- `wait_selector`: CSS selector to wait for before reading page (required for dynamic content)
+- `wait_time`: Maximum seconds to wait for selector (default: 30)
+- `click_selectors`: List of CSS selectors to click after page loads (optional)
+
+### How It Works
+
+1. Selenium navigates to the URL
+2. Waits for `wait_selector` to appear in the DOM
+3. Executes optional clicks
+4. Reads `driver.page_source` as HTML
+5. Framework parses HTML normally (same as `STATIC_HTML`)
+
+**Important Notes:**
+- Selenium returns `status_code=200` and empty `headers` (browsers don't expose HTTP metadata)
+- Browser instance runs in **headless mode** (no visible window)
+- Performance is slower than static HTML — use timeouts wisely
+- A single Chrome driver instance is reused across requests for efficiency
+
+### Example: Dynamic Site Job
+
+Use the included example:
+
+```bash
+scrape configs/jobs/dynamic_example.yaml
+```
+
+This demonstrates a realistic dynamic content scraping setup.
 
 ---
 
@@ -404,11 +519,19 @@ job:
   name: string (required)         # Human-readable name
   adapter: string (required)      # Adapter to use
   start_url: url (required)       # Must be http/https
+  method: string                  # Default: GET
+  headers: dict                   # HTTP headers (optional)
+  params: dict                    # Query params or Selenium options (optional)
   max_pages: int (1-1000)         # Default: 5
   delay_ms: int (0-60000)         # Default: 800
   dedupe_mode: enum               # BY_SOURCE_URL or BY_HASH
   required_fields: [string]       # Default: ["name", "source_url"]
   field_schema: [string]          # Expected output fields
+
+# For DYNAMIC mode, params can contain:
+#   wait_selector: string         # CSS selector to wait for
+#   wait_time: int                # Seconds to wait (default: 30)
+#   click_selectors: [string]     # Selectors to click after load
 
 sink:  # Required
   type: enum (csv|google_sheets)

@@ -1,0 +1,19 @@
+job:
+  id: "demo_dynamic"
+  name: "Demo: Dynamic Content with Selenium"
+  adapter: "dynamic_example"
+  start_url: "https://example.com/products"
+  method: "GET"
+  # Pass dynamic-specific parameters to SeleniumHttpClient
+  params:
+    wait_selector: ".product-item"  # Wait for products to load
+    wait_time: 10                    # Maximum seconds to wait
+  max_pages: 2
+  delay_ms: 1000
+  dedupe_mode: "BY_SOURCE_URL"
+  required_fields: ["name", "source_url"]
+  field_schema: ["name", "price", "description", "url"]
+
+sink:
+  type: "csv"
+  path: "output_dynamic.csv"
