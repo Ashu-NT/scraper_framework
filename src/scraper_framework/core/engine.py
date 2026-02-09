@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from scraper_framework.core.models import Page, Record, RequestSpec, ScrapeJob, ScrapeReport
 from scraper_framework.fetch.strategies import FetchStrategy
@@ -66,57 +66,62 @@ class ScrapeEngine:
         report = ScrapeReport()
         records: List[Record] = []
 
-        limiter = RateLimiter(job.delay_ms)
+        try:
+            limiter = RateLimiter(job.delay_ms)
 
-        current: Optional[RequestSpec] = job.start
-        pages = 0
+            current: Optional[RequestSpec] = job.start
+            pages = 0
 
-        self.log.info("Job started: %s (%s)", job.name, job.id)
+            self.log.info("Job started: %s (%s)", job.name, job.id)
 
-        while current and pages < job.max_pages:
-            self.log.info("Fetching page %s: %s", pages + 1, current.url)
+            while current and pages < job.max_pages:
+                self.log.info("Fetching page %s: %s", pages + 1, current.url)
 
-            page = self.fetcher.fetch(current)
-            report.pages_fetched += 1
+                page = self.fetcher.fetch(current)
+                report.pages_fetched += 1
 
-            cards = self.parser.parse_cards(page, self.adapter)
-            report.cards_found += len(cards)
-            self.log.info("Cards found: %s", len(cards))
+                cards = self.parser.parse_cards(page, self.adapter)
+                report.cards_found += len(cards)
+                self.log.info("Cards found: %s", len(cards))
 
-            for card in cards:
-                rec = self.extract(card, page, job)
-                if rec is None:
-                    report.records_skipped += 1
-                    report.bump_failure("extract_failed")
-                    continue
+                for card in cards:
+                    rec = self.extract(card, page, job)
+                    if rec is None:
+                        report.records_skipped += 1
+                        report.bump_failure("extract_failed")
+                        continue
 
-                # Optional enrichment step
-                if self.enricher and self.enricher.should_enrich(rec):
-                    rec = self.enricher.enrich(rec, self.adapter)
+                    # Optional enrichment step
+                    if self.enricher and self.enricher.should_enrich(rec):
+                        rec = self.enricher.enrich(rec, self.adapter)
 
-                rec = self.normalizer.normalize(rec)
+                    rec = self.normalizer.normalize(rec)
 
-                vr = self.validator.validate(rec, job.required_fields)
-                if not vr.ok:
-                    report.records_skipped += 1
-                    report.bump_failure(vr.reason)
-                    continue
+                    vr = self.validator.validate(rec, job.required_fields)
+                    if not vr.ok:
+                        report.records_skipped += 1
+                        report.bump_failure(vr.reason)
+                        continue
 
-                records.append(rec)
-                report.records_emitted += 1
+                    records.append(rec)
+                    report.records_emitted += 1
 
-            current = self.parser.next_request(page, self.adapter, current)
-            pages += 1
+                current = self.parser.next_request(page, self.adapter, current)
+                pages += 1
 
-            limiter.sleep()
+                limiter.sleep()
 
-        records = self.deduper.dedupe(records)
-        self.sink.write(job, records)
+            records = self.deduper.dedupe(records)
+            self.sink.write(job, records)
 
-        self.log.info(
-            "Job done: pages=%s cards=%s emitted=%s skipped=%s",
-            report.pages_fetched, report.cards_found, report.records_emitted, report.records_skipped
-        )
+            self.log.info(
+                "Job done: pages=%s cards=%s emitted=%s skipped=%s",
+                report.pages_fetched, report.cards_found, report.records_emitted, report.records_skipped
+            )
+        finally:
+            # Clean up any resources (e.g., Selenium driver for DYNAMIC mode)
+            self._cleanup()
+
         return report
 
     def extract(self, card, page: Page, job: ScrapeJob) -> Optional[Record]:
@@ -147,3 +152,15 @@ class ScrapeEngine:
             scraped_at_utc=utc_now_iso(),
             fields=fields,
         )
+    def _cleanup(self) -> None:
+        """
+        Clean up resources used by the fetcher (e.g., Selenium driver for DYNAMIC mode).
+        Called automatically after scraping completes.
+        """
+        try:
+            # Check if the fetcher's client has a close method (for SeleniumHttpClient)
+            if hasattr(self.fetcher, 'client') and hasattr(self.fetcher.client, 'close'):
+                self.fetcher.client.close()
+                self.log.info("Closed HTTP client resources (e.g., Selenium driver)")
+        except Exception as e:
+            self.log.warning("Error closing HTTP client: %s", type(e).__name__)
