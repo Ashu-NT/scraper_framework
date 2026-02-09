@@ -85,7 +85,6 @@ class ScrapeEngine:
                 self.log.info("Cards found: %s", len(cards))
 
                 for card in cards:
-                    
                     rec = self.extract(card, page, job)
                     if rec is None:
                         report.records_skipped += 1

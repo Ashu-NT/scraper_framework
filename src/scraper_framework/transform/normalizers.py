@@ -43,14 +43,22 @@ class DefaultNormalizer:
         return int(m.group(1)) if m else None
 
     def parse_rating(self, raw: Any) -> Optional[float]:
-        """Parse a rating value."""
         if raw is None:
             return None
         s = str(raw).strip()
+
+        word_map = {
+            "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        }
+        lw = s.lower()
+        if lw in word_map:
+            return float(word_map[lw])
+
         # star fallback
         stars = s.count("★")
         if stars:
             return float(stars)
+
         return self.parse_number(s)
 
     def clean_text(self, raw: Any) -> Optional[str]:

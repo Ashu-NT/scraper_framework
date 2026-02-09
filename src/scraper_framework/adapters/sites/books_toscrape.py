@@ -40,7 +40,6 @@ class BooksToScrapeAdapter(SiteAdapter):
         if field == "rating":
             # rating is encoded as class: "star-rating Three"
             raw = card.raw()
-            
             cls = raw.select_one("p.star-rating")
             if not cls:
                 return None

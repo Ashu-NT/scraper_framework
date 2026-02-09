@@ -39,6 +39,11 @@ class RequestsHttpClient:
                     timeout=self.timeout_s,
                 )
                 ct = r.headers.get("Content-Type", "")
+                
+                # If charset not specified, force utf-8 for HTML-ish content
+                if "charset=" not in ct.lower() and ("text/html" in ct.lower() or "text/plain" in ct.lower()):
+                    r.encoding = "utf-8"
+                    
                 js = None
                 if "application/json" in ct:
                     try:
