@@ -152,6 +152,7 @@ class ScrapeEngine:
             scraped_at_utc=utc_now_iso(),
             fields=fields,
         )
+    
     def _cleanup(self) -> None:
         """
         Clean up resources used by the fetcher (e.g., Selenium driver for DYNAMIC mode).

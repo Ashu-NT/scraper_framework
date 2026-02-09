@@ -8,12 +8,13 @@ class CsvSink(Sink):
     """Sink that writes records to a CSV file."""
 
     def write(self, job: ScrapeJob, records: List[Record]) -> None:
-        """Write records to CSV."""
+        """Write records to CSV using the job's field_schema for column order."""
         path = job.sink_config.get("path", "output.csv")
-        # Collect columns: stable + union of fields
+        
+        # Use field_schema to determine columns (ensures consistent schema across runs)
+        # Standard columns + fields from job.field_schema
         cols = ["id", "source_url", "scraped_at_utc"]
-        field_keys = sorted({k for r in records for k in r.fields.keys()})
-        cols += field_keys
+        cols += job.field_schema
 
         with open(path, "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=cols)

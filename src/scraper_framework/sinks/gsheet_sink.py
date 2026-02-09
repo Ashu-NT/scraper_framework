@@ -23,7 +23,7 @@ class GoogleSheetsSink(Sink):
     """
 
     def write(self, job: ScrapeJob, records: List[Record]) -> None:
-        """Write records to Google Sheets."""
+        """Write records to Google Sheets using job's field_schema for column order."""
         cfg = job.sink_config
         sheet_id = cfg["sheet_id"]
         tab_name = cfg.get("tab", "Sheet1")
@@ -34,9 +34,8 @@ class GoogleSheetsSink(Sink):
 
         ws = self._open_worksheet(sheet_id, tab_name, creds_path)
 
-        # Build header: stable + union of fields
-        field_keys = sorted({k for r in records for k in r.fields.keys()})
-        header = ["id", "source_url", "scraped_at_utc"] + field_keys
+        # Build header using job's field_schema for consistent column order
+        header = ["id", "source_url", "scraped_at_utc"] + job.field_schema
 
         self._ensure_header(ws, header)
 
