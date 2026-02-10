@@ -1,32 +1,44 @@
 # Scraper Framework
 
 A **config-driven, extensible web scraping framework** built with clean architecture principles.  
-Supports **HTML websites**, **JS-heavy sites via hidden APIs**, **Google Sheets / CSV outputs**, and **optional detail-page enrichment** — without changing core code.
+It supports:
+
+- **Static HTML** sites (Requests + BeautifulSoup)
+- **JSON APIs** (direct API scraping)
+- **Dynamic sites** (Selenium, then parsed as HTML)
+- Outputs to **CSV** and **Google Sheets**
+- Optional **detail-page enrichment**
+- Clean extension via **Adapters** + **Job YAML**, without changing core engine code
 
 ---
 
 ## What this project solves
 
-Most scraping projects fail because they are:
+Most scraping code becomes unmaintainable because it’s:
 
-- tightly coupled to one website
-- hard to maintain when HTML changes
+- tightly coupled to one site
 - written as one-off scripts
-- impossible to extend cleanly
+- hard to extend
+- brittle when HTML changes
 
-This framework solves that by:
+This framework solves that by separating:
 
-- separating **what to scrape** (config)
-- from **how to scrape** (engine)
-- from **where data lives on a site** (adapter)
+- **what to scrape** (job config)
+- **how to scrape** (engine + strategies)
+- **where data is on a site** (adapter)
 
 You can add a **new site** by writing a single adapter file — or later, only by editing config.
 
 ---
 
-## Core Concepts (High-Level)
+## Architecture (High Level)
 
-| Concept | Responsibility |
+Pipeline:
+**Fetch → Parse → Extract → Enrich → Normalize → Validate → Dedupe → Sink**
+
+Key components:
+
+| Components | Responsibility |
 | ------ | --------------- |
 | ScrapeJob | Defines what to scrape (URLs, fields, limits) |
 | ScrapeEngine | Orchestrates the scraping pipeline |
@@ -40,20 +52,12 @@ You can add a **new site** by writing a single adapter file — or later, only b
 | Enricher | Optional detail-page scraping |
 | Sink | Writes output (CSV / Google Sheets) |
 
----
-
-## Architecture Overview
-
-Pipeline:
-
-Fetch → Parse → Extract → Enrich → Normalize → Validate → Dedupe → Sink
-
 Design principles:
 
-- Open / Closed
 - Single Responsibility
-- Adapter Pattern
 - Strategy Pattern
+- Adapter Pattern
+- Open/Closed principle
 
 ---
 
@@ -89,16 +93,6 @@ pip install -e .
 ```
 
 This tells Python to load the package from `src/`.
-
-### Optional: Selenium for Dynamic Content
-
-To scrape JavaScript-heavy sites:
-
-```bash
-pip install selenium webdriver-manager
-```
-
-Selenium is **optional** — install only if you need to scrape sites with dynamic content.
 
 ---
 
@@ -207,7 +201,7 @@ Adding a new site usually means adding **one file**.
 
 ---
 
-## How to scrape a NEW website (most important section)
+## How to scrape a NEW website
 
 ### Step 1: Inspect the site
 
@@ -286,16 +280,6 @@ scrape configs/jobs/my_site.yaml
 
 Some websites render content **dynamically** using JavaScript. The framework supports this via **Selenium WebDriver**.
 
-### Prerequisites
-
-First, install Selenium dependencies:
-
-```bash
-pip install selenium webdriver-manager
-```
-
-`webdriver-manager` automatically manages ChromeDriver downloads — no manual setup required.
-
 ### When to Use DYNAMIC Mode
 
 Use `mode: DYNAMIC` when:
@@ -357,7 +341,7 @@ sink:
   path: "output_dynamic.csv"
 ```
 
-**Supported params:**
+**Some Supported params:**
 
 - `wait_selector`: CSS selector to wait for before reading page (required for dynamic content)
 - `wait_time`: Maximum seconds to wait for selector (default: 30)
@@ -621,18 +605,6 @@ See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md) for detailed setup instru
 
 ---
 
-## Typical usage flow
-
-1. Choose a website
-2. Write a small adapter (selectors only)
-3. Create a YAML job
-4. Run the job (one-time or scheduled)
-5. Deliver CSV / Google Sheet
-
-This mirrors real-world client work.
-
----
-
 ## Summary
 
 This framework is:
@@ -643,7 +615,3 @@ This framework is:
 - production-oriented
 
 It is designed to scale beyond one-off scripts.
-
----
-
-If you are using this as a portfolio project, this README is intentionally written to be **client-readable and engineer-respectable**.
