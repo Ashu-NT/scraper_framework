@@ -5,6 +5,7 @@
 ### 1. Repository Setup
 
 Ensure your repository has:
+
 - `.github/workflows/scheduled-scraping.yml`
 - `.github/workflows/manual-scraping.yml`
 - Job configuration files in `configs/jobs/`
@@ -22,6 +23,7 @@ If your jobs use Google Sheets output:
 2. **Generate Credentials**:
    - Download the JSON key file
    - Base64 encode the entire JSON content:
+
      ```bash
      cat credentials.json | base64 -w 0
      ```
@@ -41,6 +43,7 @@ schedule:
 ```
 
 Common cron expressions:
+
 - `'0 */6 * * *'` - Every 6 hours
 - `'0 0 * * *'` - Daily at midnight
 - `'0 0 * * 1'` - Weekly on Monday

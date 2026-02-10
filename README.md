@@ -5,15 +5,17 @@ Supports **HTML websites**, **JS-heavy sites via hidden APIs**, **Google Sheets 
 
 ---
 
-## 🚀 What this project solves
+## What this project solves
 
 Most scraping projects fail because they are:
+
 - tightly coupled to one website
 - hard to maintain when HTML changes
 - written as one-off scripts
 - impossible to extend cleanly
 
 This framework solves that by:
+
 - separating **what to scrape** (config)
 - from **how to scrape** (engine)
 - from **where data lives on a site** (adapter)
@@ -22,10 +24,10 @@ You can add a **new site** by writing a single adapter file — or later, only b
 
 ---
 
-## 🧠 Core Concepts (High-Level)
+## Core Concepts (High-Level)
 
 | Concept | Responsibility |
-|------|---------------|
+| ------ | --------------- |
 | ScrapeJob | Defines what to scrape (URLs, fields, limits) |
 | ScrapeEngine | Orchestrates the scraping pipeline |
 | FetchStrategy | Downloads pages (HTML or JSON API) |
@@ -40,13 +42,14 @@ You can add a **new site** by writing a single adapter file — or later, only b
 
 ---
 
-## 🧱 Architecture Overview
+## Architecture Overview
 
 Pipeline:
 
 Fetch → Parse → Extract → Enrich → Normalize → Validate → Dedupe → Sink
 
 Design principles:
+
 - Open / Closed
 - Single Responsibility
 - Adapter Pattern
@@ -54,9 +57,9 @@ Design principles:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
-```
+```text
 scraper_framework/
 ├─ configs/
 │  ├─ jobs/
@@ -77,7 +80,7 @@ scraper_framework/
 
 ---
 
-## ⚙️ Installation (first time only)
+## Installation (first time only)
 
 ```bash
 python -m venv .venv
@@ -99,12 +102,13 @@ Selenium is **optional** — install only if you need to scrape sites with dynam
 
 ---
 
-## ▶️ Running a Scraping Job
+## Running a Scraping Job
 
 ### Step 1: Create or choose a job config
 
 Job configs live in:
-```
+
+```text
 configs/jobs/
 ```
 
@@ -139,13 +143,14 @@ scrape configs/jobs/run_csv.yaml
 ```
 
 Output:
-```
+
+```text
 output_books.csv
 ```
 
 ### Job Flow
 
-```
+```text
 scrape (CLI command)
   ↓
 scraper_framework.main.main()
@@ -159,7 +164,7 @@ engine.run(job)
 
 ---
 
-## 📤 Output options
+## Output options
 
 ### CSV (local file)
 
@@ -189,9 +194,10 @@ sink:
 
 ---
 
-## 🧩 Site Adapters
+## Site Adapters
 
 Adapters isolate site-specific logic:
+
 - card location
 - field extraction
 - pagination
@@ -201,18 +207,20 @@ Adding a new site usually means adding **one file**.
 
 ---
 
-## 🧩 How to scrape a NEW website (most important section)
+## How to scrape a NEW website (most important section)
 
 ### Step 1: Inspect the site
 
 Open DevTools and identify:
+
 - the **repeated container** (listing card)
 - where fields live inside that container
 
 ### Step 2: Create a site adapter
 
 Create a new file:
-```
+
+```text
 src/scraper_framework/adapters/sites/my_site.py
 ```
 
@@ -248,7 +256,8 @@ class MySiteAdapter(SiteAdapter):
 ```
 
 Register it in:
-```
+
+```text
 src/scraper_framework/adapters/sites/__init__.py
 ```
 
@@ -273,7 +282,7 @@ scrape configs/jobs/my_site.yaml
 
 ---
 
-## 🌐 Scraping Dynamic Content with Selenium
+## Scraping Dynamic Content with Selenium
 
 Some websites render content **dynamically** using JavaScript. The framework supports this via **Selenium WebDriver**.
 
@@ -290,6 +299,7 @@ pip install selenium webdriver-manager
 ### When to Use DYNAMIC Mode
 
 Use `mode: DYNAMIC` when:
+
 - Content is rendered client-side (JavaScript)
 - Data is not present in the initial HTML response
 - Data loads on user interactions (scrolls, clicks)
@@ -348,6 +358,7 @@ sink:
 ```
 
 **Supported params:**
+
 - `wait_selector`: CSS selector to wait for before reading page (required for dynamic content)
 - `wait_time`: Maximum seconds to wait for selector (default: 30)
 - `click_selectors`: List of CSS selectors to click after page loads (optional)
@@ -361,6 +372,7 @@ sink:
 5. Framework parses HTML normally (same as `STATIC_HTML`)
 
 **Important Notes:**
+
 - Selenium returns `status_code=200` and empty `headers` (browsers don't expose HTTP metadata)
 - Browser instance runs in **headless mode** (no visible window)
 - Performance is slower than static HTML — use timeouts wisely
@@ -378,13 +390,14 @@ This demonstrates a realistic dynamic content scraping setup.
 
 ---
 
-## 🧠 Enrichment (detail pages)
+## Enrichment (detail pages)
 
 Some sites hide data (phone, website) on detail pages.
 
 ### How Enrichment Works
 
 1. **Enable enrichment** in your job config:
+
    ```yaml
    enrich:
      enabled: true
@@ -392,6 +405,7 @@ Some sites hide data (phone, website) on detail pages.
    ```
 
 2. **Define detail selectors** in your adapter using the `detail:` prefix:
+
    ```python
    def field_locator(self, field: str) -> Optional[str]:
        return {
@@ -411,6 +425,7 @@ Some sites hide data (phone, website) on detail pages.
 - `"detail:phone"` - selector used on the detail page during enrichment
 
 The engine automatically:
+
 - Scrapes listing pages first
 - Identifies missing fields from `enrich.fields`
 - Fetches detail pages for records with missing data
@@ -419,9 +434,10 @@ The engine automatically:
 
 ---
 
-## 🧼 Normalization
+## Normalization
 
 Centralized cleanup:
+
 - ratings (4.7, ★★★★★, Rated 4.7/5)
 - reviews (1,234 / 1.2k)
 - prices ($12.99 / EUR 12,99)
@@ -429,7 +445,7 @@ Centralized cleanup:
 
 ---
 
-## ⏰ Scheduled Scraping
+## Scheduled Scraping
 
 For recurring data collection, add a `schedule` section to your job YAML:
 
@@ -452,43 +468,33 @@ The framework automatically detects scheduled jobs and runs them continuously. S
 
 ---
 
-## 🏗 Factory Layer
+## Factory Layer
 
 All dependency wiring lives in one place, keeping the entrypoint clean and testable.
 
 ---
 
-## 🛡️ Configuration Validation
+## Configuration Validation
 
 The framework uses **Pydantic** for robust YAML configuration validation with clear error messages:
 
 ### Benefits
 
-- **🛡️ Runtime Safety**: Catch configuration errors before scraping starts
-- **📝 Clear Messages**: Field-specific error messages with suggestions
-- **🔧 Developer Experience**: IDE autocompletion and type hints
-- **📚 Self-Documenting**: Models serve as configuration documentation
-- **🚀 Production Ready**: Prevents runtime failures from bad configs
+- **Runtime Safety**: Catch configuration errors before scraping starts
+- **Clear Messages**: Field-specific error messages with suggestions
+- **Developer Experience**: IDE autocompletion and type hints
+- **Self-Documenting**: Models serve as configuration documentation
+- **Production Ready**: Prevents runtime failures from bad configs
 
 ### Validation Features
 
-- ✅ **Required fields** validation
-- ✅ **Type checking** (strings, integers, enums)
-- ✅ **URL validation** for start URLs
-- ✅ **Enum validation** for dedupe modes and sink types
-- ✅ **Range validation** for delays and page limits
-- ✅ **Cross-field validation** (enrich fields must be in schema)
-- ✅ **Clear error messages** with field paths
-
-### Validation Features
-
-- ✅ **Required fields** validation
-- ✅ **Type checking** (strings, integers, enums)
-- ✅ **URL validation** for start URLs
-- ✅ **Enum validation** for dedupe modes and sink types
-- ✅ **Range validation** for delays and page limits
-- ✅ **Cross-field validation** (enrich fields must be in schema)
-- ✅ **Clear error messages** with field paths
+- **Required fields** validation
+- **Type checking** (strings, integers, enums)
+- **URL validation** for start URLs
+- **Enum validation** for dedupe modes and sink types
+- **Range validation** for delays and page limits
+- **Cross-field validation** (enrich fields must be in schema)
+- **Clear error messages** with field paths
 
 ### Testing Validation
 
@@ -499,13 +505,15 @@ python test_validation.py
 ```
 
 This demonstrates:
-- ✅ Valid configurations pass
-- ❌ Invalid configurations fail with clear messages
-- 🔍 Various validation scenarios (missing fields, invalid enums, etc.)
+
+- Valid configurations pass
+- Invalid configurations fail with clear messages
+- Various validation scenarios (missing fields, invalid enums, etc.)
 
 **Example Error Output:**
+
 ```bash
-❌ Configuration validation failed:
+Configuration validation failed:
   job.dedupe_mode: Input should be 'BY_SOURCE_URL' or 'BY_HASH'
   job.max_pages: Input should be less than or equal to 1000
   sink.type: Unknown sink type: 'invalid'. Must be "csv" or "google_sheets"
@@ -555,15 +563,16 @@ schedule:  # Optional
 
 ---
 
-## 📊 Logging
+## Logging
 
 Logging is configured in:
 
-```
+```text
 configs/logging.yaml
 ```
 
 Logs show:
+
 - page fetch progress
 - cards found
 - records emitted / skipped
@@ -571,7 +580,7 @@ Logs show:
 
 ---
 
-## 📊 Reliability
+## Reliability
 
 - structured logging
 - retry with backoff
@@ -580,7 +589,7 @@ Logs show:
 
 ---
 
-## 🚀 GitHub Actions Integration
+## GitHub Actions Integration
 
 Run scheduled scraping jobs automatically using GitHub Actions:
 
@@ -610,17 +619,9 @@ Use `manual-scraping.yml` for on-demand runs:
 
 See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md) for detailed setup instructions.
 
-### Benefits
-
-- ✅ No server maintenance
-- ✅ Automatic result commits
-- ✅ Artifact storage for logs
-- ✅ Free for public repos
-- ✅ Manual override capability
-
 ---
 
-## 🎯 Typical usage flow
+## Typical usage flow
 
 1. Choose a website
 2. Write a small adapter (selectors only)
@@ -632,9 +633,10 @@ This mirrors real-world client work.
 
 ---
 
-## 🏁 Summary
+## Summary
 
 This framework is:
+
 - reusable
 - testable
 - config-driven
