@@ -21,7 +21,11 @@ class HtmlPageParser:
         """Parse cards from an HTML page."""
         soup = BeautifulSoup(page.raw, "html.parser")
         locator = adapter.card_locator()
-        return [HtmlCard(el) for el in soup.select(locator)]
+        cards = [HtmlCard(el) for el in soup.select(locator)]
+
+        # cache for next_request()
+        setattr(page, "_cards_cache", cards)
+        return cards
 
     def next_request(self, page: Page, adapter: SiteAdapter, current: RequestSpec) -> Optional[RequestSpec]:
         """Extract next request from an HTML page."""
@@ -42,7 +46,9 @@ class JsonPageParser:
             else:
                 cur = None
         items = cur if isinstance(cur, list) else []
-        return [JsonCard(obj) for obj in items]
+        cards = [JsonCard(obj) for obj in items]
+        setattr(page, "_cards_cache", cards)
+        return cards
 
     def next_request(self, page: Page, adapter: SiteAdapter, current: RequestSpec) -> Optional[RequestSpec]:
         """Extract next request from a JSON response."""

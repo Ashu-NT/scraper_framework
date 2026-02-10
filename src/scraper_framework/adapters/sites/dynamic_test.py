@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from scraper_framework.adapters.base import SiteAdapter
 from scraper_framework.core.models import Page, RequestSpec
 from scraper_framework.parse.cards import Card
-
+from scraper_framework.utils.logging import get_logger
 
 class DynamicTestAdapter(SiteAdapter):
     """
@@ -15,6 +15,8 @@ class DynamicTestAdapter(SiteAdapter):
 
     This adapter demonstrates mode='DYNAMIC' with wait_selector and wait_time.
     """
+    def __init__(self):
+        self.log = get_logger("scraper_framework.adapters.dynamic_test")
 
     def key(self) -> str:
         """Return the adapter key."""
@@ -62,5 +64,100 @@ class DynamicTestAdapter(SiteAdapter):
         return card.get_text(loc) if loc else None
 
     def next_request(self, page: Page, current: RequestSpec) -> Optional[RequestSpec]:
-        """Extract the next page request from the current page."""
-        return None
+        """
+        Adapter-driven infinite scroll pagination using UNIQUE href progress.
+
+        Why: virtualized DOM is not monotonic (counts go up/down), but unique hrefs
+        seen over time is monotonic if you accumulate it in params.
+
+        Stop conditions:
+        - cursor >= scroll_max_pages
+        - unique_seen_total did not increase for scroll_stall_limit cycles
+        """
+        params = dict(current.params or {})
+
+        max_scroll_pages = int(params.get("scroll_max_pages", 25))
+        cursor = int(params.get("scroll_cursor", 0))
+
+        stall_limit = int(params.get("scroll_stall_limit", 3))
+        stall = int(params.get("scroll_stall_count", 0))
+
+        # Safety: stop after N scroll cycles
+        if cursor >= max_scroll_pages:
+            self.log.info("Scroll stop: reached scroll_max_pages=%d", max_scroll_pages)
+            return None
+
+        # Extract unique hrefs matching our card pattern.
+        # We count unique per DOM snapshot, and also accumulate across cycles.
+        cards = getattr(page, "_cards_cache", [])
+        hrefs = set()
+
+        for c in cards:
+            u = self.extract_source_url(c, page)
+            if u:
+                hrefs.add(u)
+
+        unique_in_dom = len(hrefs)
+
+        # Accumulate total uniques across cycles in params
+        seen_total = set(params.get("scroll_seen_hrefs", []))
+        before_total = len(seen_total)
+        seen_total.update(hrefs)
+        after_total = len(seen_total)
+
+        # Did we discover NEW unique cards this cycle?
+        grew = after_total > int(params.get("scroll_unique_total", 0))
+
+        if not grew:
+            stall += 1
+        else:
+            stall = 0
+
+        # Stop if stalled
+        if stall >= stall_limit:
+            self.log.info(
+                "Scroll stop: cursor=%d unique_total=%d (+%d) dom_unique=%d stall=%d/%d",
+                cursor,
+                after_total,
+                after_total - before_total,
+                unique_in_dom,
+                stall,
+                stall_limit,
+            )
+            return None
+
+        # Log progress (nice for debugging)
+        self.log.info(
+            "Scroll progress: cursor=%d unique_total=%d (+%d) dom_unique=%d stall=%d/%d",
+            cursor,
+            after_total,
+            after_total - before_total,
+            unique_in_dom,
+            stall,
+            stall_limit,
+        )
+
+        # Build next RequestSpec: ONE scroll action
+        params.update({
+            "scroll_action": "down",
+            "scroll_cursor": cursor + 1,
+
+            # store accumulated progress
+            "scroll_stall_count": stall,
+            "scroll_unique_total": after_total,
+            "scroll_seen_hrefs": list(seen_total),
+
+            # optional: ScrollStep can wait for DOM to show more items (best-effort)
+            "scroll_wait_increase_selector": self.card_locator(),
+            "scroll_prev_count": unique_in_dom,  # DOM count (not the progress metric)
+        })
+
+        return RequestSpec(
+            url=current.url,
+            headers=current.headers,
+            params=params,
+            method="GET",
+            body=None,
+        )
+
+

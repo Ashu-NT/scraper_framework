@@ -15,6 +15,7 @@ from scraper_framework.core.models import RequestSpec
 from scraper_framework.http.response import HttpResponse
 from scraper_framework.utils.logging import get_logger
 from scraper_framework.http.selenium_steps import (
+    RevealAndClickStep,
     WindowStep,
     CookieConsentStep,
     WaitForSelectorStep,
@@ -25,18 +26,12 @@ from scraper_framework.http.selenium_steps import (
 
 class SeleniumHttpClient:
     """
-    PUBLIC API (unchanged):
-      - __init__
-      - send(RequestSpec) -> HttpResponse
-      - close()
+    Key behavior:
+      - First fetch navigates to URL
+      - Later fetches (same URL) do NOT re-navigate; they scroll/click/wait
     """
 
-    def __init__(
-        self,
-        headless: bool = False,
-        timeout_s: int = 30,
-        driver_path: str | None = None,
-    ):
+    def __init__(self, headless: bool = True, timeout_s: int = 30, driver_path: str | None = None):
         if webdriver is None:
             raise RuntimeError("selenium not installed")
 
@@ -60,19 +55,37 @@ class SeleniumHttpClient:
         except Exception:
             self.driver = webdriver.Chrome(options=opts)
 
+        # Track navigation state
+        self._current_url: str | None = None
+
         # Pipeline (order matters)
+        # We wait AFTER scroll/click so the new cards have time to appear.
         self.steps = [
             WindowStep(),
             CookieConsentStep(),
-            WaitForSelectorStep(),
+             # one action step per iteration
             ClickSelectorsStep(),
             ScrollStep(),
+            RevealAndClickStep(),  # custom step to handle "reveal on scroll" + click patterns
+            
+            # wait after action so DOM can update
+            WaitForSelectorStep(),
         ]
 
     def send(self, req: RequestSpec) -> HttpResponse:
-        self.driver.get(req.url)
         params = req.params or {}
 
+        # Navigate only if URL changed or first time
+        if self._current_url != req.url:
+            self.log.info("Selenium: navigating %s", req.url)
+            self.driver.get(req.url)
+            self._current_url = req.url
+
+            # reset one-time flags per navigation
+            params.pop("_window_applied", None)
+            params.pop("_cookies_handled", None)
+
+        # Run pipeline steps for this "page state"
         for step in self.steps:
             step.apply(self.driver, params, self.log, self.timeout_s)
 
