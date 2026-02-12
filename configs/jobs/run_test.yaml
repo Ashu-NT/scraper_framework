@@ -13,8 +13,8 @@ enrich:
   enabled: false
 
 sink:
-  type: "csv"
-  path: "output_contact_info.csv"
+  type: "jsonl"
+  path: "output_contact_info.jsonl"
 
 schedule:
   enabled: false

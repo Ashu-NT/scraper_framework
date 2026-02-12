@@ -134,6 +134,11 @@ class ComponentFactory:
         sink_type = str(job.sink_config.get("type", "csv")).lower()
         if sink_type in ("google_sheets", "gsheet", "sheets"):
             return GoogleSheetsSink()
+        
+        if sink_type == str("jsonl").lower():
+            from scraper_framework.sinks.jsonl_sink import JsonlSink
+            return JsonlSink()
+        
         return CsvSink()
 
     def _enricher(self, job: ScrapeJob, fetcher: FetchStrategy) -> Optional[DetailPageEnricher]:

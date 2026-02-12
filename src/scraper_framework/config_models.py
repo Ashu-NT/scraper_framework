@@ -91,6 +91,11 @@ class GoogleSheetsSinkConfig(BaseModel):
         return self
 
 
+class JsonlSinkConfig(BaseModel):
+    """Configuration for JSONL sink."""
+    type: Literal["jsonl"]
+    path: str = Field(..., description="Path to output JSONL file")
+
 class ScheduleConfig(BaseModel):
     """Configuration for scheduled execution."""
     enabled: bool = Field(False, description="Whether scheduling is enabled")
@@ -130,6 +135,12 @@ class ScraperConfig(BaseModel):
                 raise ValueError(f'Google Sheets sink missing required fields: {missing}')
             # Create and assign the validated model
             self.sink = GoogleSheetsSinkConfig(**sink_data)
+        elif sink_type == 'jsonl':
+            # Validate JSONL sink
+            if 'path' not in sink_data:
+                raise ValueError('JSONL sink requires "path" field')
+            # Create and assign the validated model
+            self.sink = JsonlSinkConfig(**sink_data)
         else:
             raise ValueError(f'Unknown sink type: {sink_type}. Must be "csv" or "google_sheets"')
 
