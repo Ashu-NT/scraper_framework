@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Protocol
 from scraper_framework.core.models import Record
-from scraper_framework.utils.hashing import stable_hash
+from scraper_framework.utils.hashing import normalize_text, stable_hash
 from scraper_framework.utils.logging import get_logger
 
 
@@ -61,7 +61,7 @@ class HashDedupeStrategy:
     def key(self, record: Record) -> str:
         """Generate dedupe key from hash of source URL or name."""
         basis = record.source_url or (record.fields.get("name") or "")
-        return stable_hash(str(basis))
+        return stable_hash(normalize_text(str(basis)))
 
     def dedupe(self, records: List[Record]) -> List[Record]:
         """Remove duplicate records based on hash."""

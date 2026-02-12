@@ -1,0 +1,21 @@
+job:
+  id: "contact_info_csv"
+  name: "ScrapeContactInfo to CSV"
+  adapter: "test_static"
+  start_url: "https://lakewooddirectory.com/white/advanced-search-dec-27/?acs-action=advanced-search"
+  max_pages: 44
+  delay_ms: 2800
+  dedupe_mode: "BY_SOURCE_URL"
+  required_fields: ["name", "source_url"]
+  field_schema: ["name", "address", "phone"]
+
+enrich:
+  enabled: false
+
+sink:
+  type: "csv"
+  path: "output_contact_info.csv"
+
+schedule:
+  enabled: false
+  interval_hours: 24  # Run every 24 hours

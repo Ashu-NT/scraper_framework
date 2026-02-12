@@ -10,7 +10,7 @@ from scraper_framework.transform.validators import Validator
 from scraper_framework.transform.dedupe import DedupeStrategy
 from scraper_framework.sinks.base import Sink
 from scraper_framework.utils.time import utc_now_iso
-from scraper_framework.utils.hashing import stable_hash
+from scraper_framework.utils.hashing import normalize_text, stable_hash
 from scraper_framework.http.policies import RateLimiter
 from scraper_framework.utils.logging import get_logger
 
@@ -145,7 +145,7 @@ class ScrapeEngine:
             val = self.adapter.extract_field(card, field, page)
             fields[field] = val
 
-        rid = stable_hash(source_url)
+        rid = stable_hash(normalize_text(source_url))
         return Record(
             id=rid,
             source_url=source_url,
