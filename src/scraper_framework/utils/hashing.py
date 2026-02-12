@@ -1,6 +1,7 @@
 import hashlib
 from typing import Any
 import unicodedata
+import re
 
 def stable_hash(text: str) -> str:
     """Generate a stable hash from text."""
