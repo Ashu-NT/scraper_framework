@@ -280,6 +280,70 @@ Current built-in plugins:
 - `drop_if_field_empty`
 - `field_coverage_analytics`
 - `pass_through`
+- `score_lead_fit`
+- `top_n_per_segment`
+- `normalize_upwork_budget`
+- `normalize_upwork_age`
+- `client_quality_score`
+
+Example scoring + ranking stages:
+
+```yaml
+processing:
+  enabled: true
+  schema_version: "1.0"
+  stages:
+    - plugin: "score_lead_fit"
+      type: "record"
+      on_error: "fail"
+      config:
+        weights:
+          budget: 0.01
+        presence_weights:
+          phone: 5
+        output_field: "lead_score"
+    - plugin: "top_n_per_segment"
+      type: "batch"
+      on_error: "fail"
+      config:
+        segment_field: "category"
+        score_field: "lead_score"
+        top_n: 5
+```
+
+Example Upwork-focused stages:
+
+```yaml
+processing:
+  enabled: true
+  schema_version: "1.0"
+  stages:
+    - plugin: "normalize_upwork_budget"
+      type: "record"
+      on_error: "skip"
+      config:
+        input_field: "budget"
+        hourly_to_usd_hours: 160
+    - plugin: "normalize_upwork_age"
+      type: "record"
+      on_error: "skip"
+      config:
+        input_field: "posted_ago"
+    - plugin: "client_quality_score"
+      type: "record"
+      on_error: "skip"
+      config: {}
+    - plugin: "score_lead_fit"
+      type: "record"
+      on_error: "fail"
+      config:
+        weights:
+          budget_usd_est: 0.001
+          client_quality_score: 0.5
+        presence_weights:
+          payment_verified: 3
+        output_field: "lead_score"
+```
 
 Contracts enforced by the runner:
 

@@ -201,6 +201,174 @@ class TestProcessingRunner(unittest.TestCase):
         self.assertEqual(artifacts["total_records"], 2)
         self.assertEqual(artifacts["field_coverage"]["name"]["present"], 1)
 
+    def test_score_lead_fit_plugin_adds_weighted_score(self):
+        job = ScrapeJob(
+            id="job",
+            name="job",
+            start=RequestSpec(url="https://example.com"),
+            processing=ProcessingConfig(
+                enabled=True,
+                schema_version="1.0",
+                stages=[
+                    ProcessingStage(
+                        plugin="score_lead_fit",
+                        stage_type="record",
+                        on_error="fail",
+                        config={
+                            "weights": {"budget": 0.01},
+                            "presence_weights": {"phone": 5},
+                            "output_field": "fit_score",
+                            "round_digits": 2,
+                        },
+                    )
+                ],
+            ),
+        )
+        records = [
+            _record(1, "https://example.com/1", {"budget": "1000", "phone": "123"}),
+            _record(2, "https://example.com/2", {"budget": "500", "phone": ""}),
+        ]
+
+        result = self.runner.run(job, records)
+        self.assertEqual(len(result.records), 2)
+        self.assertEqual(result.records[0].fields["fit_score"], 15.0)
+        self.assertEqual(result.records[1].fields["fit_score"], 5.0)
+
+    def test_top_n_per_segment_keeps_best_scored_per_group(self):
+        job = ScrapeJob(
+            id="job",
+            name="job",
+            start=RequestSpec(url="https://example.com"),
+            processing=ProcessingConfig(
+                enabled=True,
+                schema_version="1.0",
+                stages=[
+                    ProcessingStage(
+                        plugin="top_n_per_segment",
+                        stage_type="batch",
+                        on_error="fail",
+                        config={
+                            "segment_field": "category",
+                            "score_field": "lead_score",
+                            "top_n": 1,
+                        },
+                    )
+                ],
+            ),
+        )
+        records = [
+            _record(1, "https://example.com/1", {"category": "A", "lead_score": 10}),
+            _record(2, "https://example.com/2", {"category": "A", "lead_score": 7}),
+            _record(3, "https://example.com/3", {"category": "B", "lead_score": 3}),
+            _record(4, "https://example.com/4", {"category": "B", "lead_score": 9}),
+        ]
+
+        result = self.runner.run(job, records)
+        self.assertEqual(len(result.records), 2)
+        self.assertEqual(result.records[0].source_url, "https://example.com/1")
+        self.assertEqual(result.records[1].source_url, "https://example.com/4")
+
+        artifacts = result.artifacts["1:top_n_per_segment"]
+        self.assertEqual(artifacts["total_input"], 4)
+        self.assertEqual(artifacts["total_output"], 2)
+        self.assertEqual(artifacts["selected_per_segment"]["A"], 1)
+        self.assertEqual(artifacts["selected_per_segment"]["B"], 1)
+
+    def test_normalize_upwork_budget_parses_hourly_range(self):
+        job = ScrapeJob(
+            id="job",
+            name="job",
+            start=RequestSpec(url="https://example.com"),
+            processing=ProcessingConfig(
+                enabled=True,
+                schema_version="1.0",
+                stages=[
+                    ProcessingStage(
+                        plugin="normalize_upwork_budget",
+                        stage_type="record",
+                        on_error="fail",
+                        config={"input_field": "budget", "hourly_to_usd_hours": 160},
+                    )
+                ],
+            ),
+        )
+        records = [
+            _record(1, "https://example.com/1", {"budget": "$20 - $40/hr"}),
+        ]
+
+        result = self.runner.run(job, records)
+        fields = result.records[0].fields
+        self.assertEqual(fields["budget_type"], "hourly")
+        self.assertEqual(fields["budget_min"], 20.0)
+        self.assertEqual(fields["budget_max"], 40.0)
+        self.assertEqual(fields["budget_usd_est"], 4800.0)
+
+    def test_normalize_upwork_age_parses_relative_age(self):
+        job = ScrapeJob(
+            id="job",
+            name="job",
+            start=RequestSpec(url="https://example.com"),
+            processing=ProcessingConfig(
+                enabled=True,
+                schema_version="1.0",
+                stages=[
+                    ProcessingStage(
+                        plugin="normalize_upwork_age",
+                        stage_type="record",
+                        on_error="fail",
+                        config={"input_field": "posted_ago"},
+                    )
+                ],
+            ),
+        )
+        records = [
+            _record(1, "https://example.com/1", {"posted_ago": "2 hours ago"}),
+        ]
+
+        result = self.runner.run(job, records)
+        fields = result.records[0].fields
+        self.assertEqual(fields["post_age_hours"], 2.0)
+        self.assertEqual(fields["post_age_bucket"], "recent")
+
+    def test_client_quality_score_generates_score_and_tier(self):
+        job = ScrapeJob(
+            id="job",
+            name="job",
+            start=RequestSpec(url="https://example.com"),
+            processing=ProcessingConfig(
+                enabled=True,
+                schema_version="1.0",
+                stages=[
+                    ProcessingStage(
+                        plugin="client_quality_score",
+                        stage_type="record",
+                        on_error="fail",
+                        config={},
+                    )
+                ],
+            ),
+        )
+        records = [
+            _record(
+                1,
+                "https://example.com/1",
+                {
+                    "payment_verified": True,
+                    "hire_rate": "80%",
+                    "total_spent": "$50000",
+                    "avg_hourly_rate": "40",
+                    "reviews": "20",
+                    "jobs_posted": "50",
+                },
+            ),
+        ]
+
+        result = self.runner.run(job, records)
+        fields = result.records[0].fields
+        self.assertIn("client_quality_score", fields)
+        self.assertIn("client_quality_tier", fields)
+        self.assertGreater(fields["client_quality_score"], 50.0)
+
 
 class TestEngineWithProcessing(unittest.TestCase):
     def test_engine_runs_processing_when_enabled(self):
