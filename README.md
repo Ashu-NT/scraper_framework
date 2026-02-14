@@ -1,64 +1,51 @@
 # Scraper Framework
 
-A **config-driven, extensible web scraping framework** built with clean architecture principles.  
-It supports:
+A config-driven scraping framework with clean extension points for:
 
-- **Static HTML** sites (Requests + BeautifulSoup)
-- **JSON APIs** (direct API scraping)
-- **Dynamic sites** (Selenium, then parsed as HTML)
-- Outputs to **CSV** and **Google Sheets**
-- Optional **detail-page enrichment**
-- Clean extension via **Adapters** + **Job YAML**, without changing core engine code
-
----
-
-## What this project solves
-
-Most scraping code becomes unmaintainable because it’s:
-
-- tightly coupled to one site
-- written as one-off scripts
-- hard to extend
-- brittle when HTML changes
-
-This framework solves that by separating:
-
-- **what to scrape** (job config)
-- **how to scrape** (engine + strategies)
-- **where data is on a site** (adapter)
-
-You can add a **new site** by writing a single adapter file — or later, only by editing config.
+- Static HTML scraping (Requests + BeautifulSoup)
+- JSON API scraping
+- Dynamic rendering with Selenium
+- Optional detail-page enrichment
+- Post-scrape processing pipeline (business rules + analytics)
+- Output sinks: CSV, JSONL, Google Sheets
+- Streaming/chunked execution for large runs
 
 ---
 
-## Architecture (High Level)
+## Why This Project Exists
+
+Most scraper codebases fail long-term because they become:
+
+- tightly coupled to one website
+- hard to extend for new clients
+- hard to test safely
+- expensive to maintain when HTML changes
+
+This project separates responsibilities so you can scale work:
+
+- adapters define where data is on each site
+- the engine defines how scraping runs
+- processing stages define business and analytics logic
+- YAML defines per-client behavior without core rewrites
+
+---
+
+## High-Level Flow
 
 Pipeline:
-**Fetch → Parse → Extract → Enrich → Normalize → Validate → Dedupe → Processing → Sink**
 
-Key components:
+`Fetch -> Parse -> Extract -> Enrich -> Normalize -> Validate -> Dedupe -> Processing -> Sink`
 
-| Components | Responsibility |
-| ------ | --------------- |
-| ScrapeJob | Defines what to scrape (URLs, fields, limits) |
-| ScrapeEngine | Orchestrates the scraping pipeline |
-| FetchStrategy | Downloads pages (HTML or JSON API) |
-| PageParser | Converts pages into repeated containers (“cards”) |
-| SiteAdapter | Knows where data lives on a specific site |
-| Record | Generic output model |
-| Normalizer | Cleans messy data |
-| Validator | Ensures required fields exist |
-| DedupeStrategy | Removes duplicates |
-| ProcessingRunner | Runs post-scrape business/analytics stages |
-| Enricher | Optional detail-page scraping |
-| Sink | Writes output (CSV / Google Sheets) |
+Execution modes:
 
-Design principles:
+- `memory` (default): process all valid records at the end of the run
+- `stream`: buffer records and flush by chunk (`batch_size`)
 
-- Single Responsibility
-- Strategy Pattern
-- Adapter Pattern
-- Open/Closed principle
+In `stream` mode each flush does:
+
+`chunk -> dedupe (global across chunks) -> processing -> sink.write`
+
+Global dedupe means a record seen in chunk 1 is still treated as duplicate in chunk N.
 
 ---
 
@@ -70,15 +57,15 @@ scraper_framework/
 │  ├─ jobs/
 │  └─ logging.yaml
 ├─ src/scraper_framework/
+│  ├─ adapters/
 │  ├─ core/
+│  ├─ enrich/
 │  ├─ fetch/
 │  ├─ http/
 │  ├─ parse/
-│  ├─ adapters/
-│  ├─ transform/
-│  ├─ enrich/
 │  ├─ process/
 │  ├─ sinks/
+│  ├─ transform/
 │  └─ utils/
 ├─ tests/
 └─ README.md
@@ -86,7 +73,7 @@ scraper_framework/
 
 ---
 
-## Installation (first time only)
+## Installation
 
 ```bash
 python -m venv .venv
@@ -94,21 +81,122 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-This tells Python to load the package from `src/`.
+For dev/test tools:
+
+```bash
+pip install -e .[dev]
+```
 
 ---
 
-## Running a Scraping Job
+## Run a Job
 
-### Step 1: Create or choose a job config
-
-Job configs live in:
-
-```text
-configs/jobs/
+```bash
+scrape configs/jobs/run_csv.yaml
 ```
 
-Example: `configs/jobs/run_csv.yaml`
+Also see:
+
+- `configs/jobs/run_processing_example.yaml`
+
+---
+
+## How To Scrape And Process A New Website
+
+### 1. Inspect the target site
+
+Identify:
+
+- scraping mode: `STATIC_HTML`, `JSON_API`, or `DYNAMIC`
+- card/listing container selector or JSON path
+- selectors/paths for each field in `field_schema`
+- pagination strategy
+
+### 2. Create a site adapter
+
+Create `src/scraper_framework/adapters/sites/<site_name>.py`:
+
+```python
+class MySiteAdapter:
+    def key(self):
+        return "my_site"
+
+    def mode(self):
+        return "STATIC_HTML"
+
+    def card_locator(self):
+        return ".listing-card"
+
+    def field_locator(self, field):
+        return {
+            "name": ".title",
+            "price": ".price",
+            "detail:phone": ".phone",
+        }.get(field)
+
+    def extract_source_url(self, card, page):
+        return card.get_attr("a", "href")
+
+    def next_request(self, page, current):
+        return None
+```
+
+### 3. Register the adapter
+
+Add it to adapter registration in `src/scraper_framework/adapters/sites/__init__.py` so `register_all()` includes it.
+
+### 4. Create a job YAML for scrape + process
+
+Create `configs/jobs/my_site.yaml`:
+
+```yaml
+job:
+  id: "my_site_job"
+  name: "My Site Job"
+  adapter: "my_site"
+  start_url: "https://example.com/search"
+  execution_mode: "stream"
+  batch_size: 500
+  field_schema: ["name", "price", "phone"]
+  required_fields: ["name", "source_url"]
+
+enrich:
+  enabled: true
+  fields: ["phone"]
+
+processing:
+  enabled: true
+  schema_version: "1.0"
+  stages:
+    - plugin: "drop_if_field_empty"
+      type: "record"
+      on_error: "quarantine"
+      config:
+        field: "phone"
+
+sink:
+  type: "jsonl"
+  path: "output_my_site.jsonl"
+  write_mode: "overwrite"
+```
+
+### 5. Run it
+
+```bash
+scrape configs/jobs/my_site.yaml
+```
+
+### 6. Add custom processing logic (optional)
+
+If built-in plugins are not enough:
+
+1. add a new plugin class under `src/scraper_framework/process/plugins/`
+2. register it in `src/scraper_framework/process/plugins/__init__.py` (`built_in_plugin_factories`)
+3. reference it in YAML `processing.stages[].plugin`
+
+---
+
+## Job YAML Example
 
 ```yaml
 job:
@@ -116,57 +204,39 @@ job:
   name: "BooksToScrape to CSV"
   adapter: "books_toscrape"
   start_url: "https://books.toscrape.com/catalogue/page-1.html"
-  execution_mode: "memory"  # memory | stream
-  batch_size: 500           # used when execution_mode=stream
+  method: "GET"
+  execution_mode: "memory"      # memory | stream
+  batch_size: 500               # used when execution_mode=stream
   max_pages: 2
   delay_ms: 800
-  dedupe_mode: "BY_SOURCE_URL"
+  dedupe_mode: "BY_SOURCE_URL"  # BY_SOURCE_URL | BY_HASH
   required_fields: ["name", "source_url"]
   field_schema: ["name", "price", "rating"]
 
 enrich:
   enabled: false
+  fields: []
 
 processing:
   enabled: false
+  schema_version: "1.0"
+  stages: []
 
 sink:
-  type: "csv"
+  type: "csv"                   # csv | jsonl | google_sheets
   path: "output_books.csv"
-  write_mode: "overwrite"   # overwrite | append
+  write_mode: "overwrite"       # csv/jsonl only: overwrite | append
+
+schedule:
+  enabled: false
+  interval_hours: 24
 ```
 
-### Step 2: Run the job
+---
 
-From the project root:
+## Streaming for Large Runs
 
-```bash
-scrape configs/jobs/run_csv.yaml
-```
-
-Output:
-
-```text
-output_books.csv
-```
-
-### Job Flow
-
-```text
-scrape (CLI command)
-  ↓
-scraper_framework.main.main()
-  ↓
-load YAML
-  ↓
-factory builds components
-  ↓
-engine.run(job)
-```
-
-### Streaming Mode (chunked processing)
-
-For large datasets, avoid keeping all records in memory:
+Use chunked mode when record volume is high:
 
 ```yaml
 job:
@@ -174,24 +244,81 @@ job:
   batch_size: 500
 ```
 
-Stream mode behavior:
+Behavior in stream mode:
 
-- records are buffered up to `batch_size`
-- each chunk runs: `dedupe -> processing -> sink.write`
-- dedupe remains global across chunks for the whole run
-- logs include per-chunk flush stats
+- records are buffered until `batch_size`
+- each chunk is deduped and processed before writing
+- dedupe is global across chunks (not just per chunk)
+- sink writes happen incrementally
+- chunk-level logs are emitted (`Chunk flushed: ...`)
 
 ---
 
-## Output options
+## Processing Pipeline
 
-### CSV (local file)
+Processing is optional and runs after dedupe.
+
+```yaml
+processing:
+  enabled: true
+  schema_version: "1.0"
+  stages:
+    - plugin: "drop_if_field_empty"
+      type: "record"            # record | batch | analytics
+      on_error: "quarantine"    # fail | skip | quarantine
+      config:
+        field: "phone"
+    - plugin: "field_coverage_analytics"
+      type: "analytics"
+      on_error: "skip"
+      config:
+        fields: ["name", "phone", "address"]
+```
+
+Current built-in plugins:
+
+- `drop_if_field_empty`
+- `field_coverage_analytics`
+- `pass_through`
+
+Contracts enforced by the runner:
+
+- schema version compatibility (`1.0`)
+- idempotent plugins
+- per-stage error policy (`fail`, `skip`, `quarantine`)
+- per-stage metrics:
+  - `records_in`
+  - `records_out`
+  - `dropped`
+  - `errors`
+  - `latency_ms`
+
+Runtime report fields include:
+
+- `records_quarantined`
+- `processing_stage_metrics`
+- `processing_artifacts`
+
+---
+
+## Sink Behavior
+
+### CSV
 
 ```yaml
 sink:
   type: "csv"
   path: "output.csv"
-  write_mode: "overwrite"  # overwrite (first write truncates) | append
+  write_mode: "overwrite"       # overwrite | append
+```
+
+### JSONL
+
+```yaml
+sink:
+  type: "jsonl"
+  path: "output.jsonl"
+  write_mode: "overwrite"       # overwrite | append
 ```
 
 ### Google Sheets
@@ -202,500 +329,157 @@ sink:
   sheet_id: "YOUR_SHEET_ID"
   tab: "Leads"
   credentials_path: "service_account.json"
-  mode: "upsert"
-  key_field: "source_url"
+  mode: "append"                # append | replace | upsert
+  key_field: "source_url"       # required when mode=upsert
 ```
 
-#### Google Sheets setup (one-time)
+Google Sheets header safety:
 
-1. Create a Google Cloud **Service Account**
-2. Download JSON key → `service_account.json`
-3. Share the target Google Sheet with the service account email
+- if row 1 is empty, header is created
+- if row 1 matches expected header, write continues
+- if row 1 mismatches, write fails fast (no destructive clear)
+
+Note:
+
+- `replace` is accepted by config validation. Current sink implementation writes like append unless `upsert` is selected.
 
 ---
 
-## Site Adapters
+## Enrichment
 
-Adapters isolate site-specific logic:
-
-- card location
-- field extraction
-- pagination
-- optional detail selectors
-
-Adding a new site usually means adding **one file**.
-
----
-
-## How to scrape a NEW website
-
-### Step 1: Inspect the site
-
-Open DevTools and identify:
-
-- the **repeated container** (listing card)
-- where fields live inside that container
-
-### Step 2: Create a site adapter
-
-Create a new file:
-
-```text
-src/scraper_framework/adapters/sites/my_site.py
-```
-
-You only define selectors and pagination:
-
-```python
-class MySiteAdapter(SiteAdapter):
-    def key(self):
-        return "my_site"
-
-    def mode(self):
-        return "STATIC_HTML" # or JSON_API or DYNAMIC
-
-    def card_locator(self):
-        return ".listing-card"
-
-    def field_locator(self, field):
-        return {
-            "name": "h2",
-            "price": ".price",
-            "rating": ".rating",
-            # Detail fields (used during enrichment)
-            "detail:phone": ".contact-phone, a[href^='tel:']",
-            "detail:website": ".website-link",
-            "detail:address": ".full-address",
-        }.get(field)
-
-    def extract_source_url(self, card, page):
-        return card.get_attr("a", "href")
-
-    def next_request(self, page, current):
-        ...
-```
-
-Register it in:
-
-```text
-src/scraper_framework/adapters/sites/__init__.py
-```
-
-### Step 3: Create a YAML job for that adapter
+Enable detail-page enrichment:
 
 ```yaml
-job:
-  adapter: "my_site"
-  start_url: "https://example.com/search"
-  field_schema: ["name", "price", "rating", "phone", "website", "address"]
-
 enrich:
   enabled: true
-  fields: ["phone", "website", "address"]  # These require detail page scraping
+  fields: ["phone", "website", "address"]
 ```
 
-Run it:
+For enrichable fields, adapter selectors should use `detail:` prefixes, for example:
 
-```bash
-scrape configs/jobs/my_site.yaml
-```
+- `detail:phone`
+- `detail:website`
+- `detail:address`
 
 ---
 
-## Scraping Dynamic Content with Selenium
+## Dynamic Scraping (Selenium)
 
-Some websites render content **dynamically** using JavaScript. The framework supports this via **Selenium WebDriver**.
+Use adapter mode `DYNAMIC` for JS-rendered pages.
 
-### When to Use DYNAMIC Mode
+Common `job.params` keys:
 
-Use `mode: DYNAMIC` when:
+- `wait_selector`
+- `wait_time`
+- `click_selectors`
 
-- Content is rendered client-side (JavaScript)
-- Data is not present in the initial HTML response
-- Data loads on user interactions (scrolls, clicks)
-- Site uses modern frameworks (React, Vue, Angular)
+---
 
-### Creating a Dynamic Adapter
+## Config Validation (Pydantic)
 
-Return `"DYNAMIC"` from `mode()`:
+Validation includes:
 
-```python
-class MyDynamicAdapter(SiteAdapter):
-    def key(self):
-        return "my_dynamic_site"
+- required fields and types
+- URL checks for `start_url`
+- enum checks:
+  - `dedupe_mode`
+  - `execution_mode`
+  - sink `type`
+  - processing stage `type`
+  - processing stage `on_error`
+  - sink `write_mode` (csv/jsonl)
+- range checks (`max_pages`, `delay_ms`, `batch_size`, `interval_hours`)
+- cross-field checks (for example, `enrich.fields` in `field_schema`)
 
-    def mode(self):
-        return "DYNAMIC"  # Triggers Selenium-based fetching
+---
 
-    def card_locator(self):
-        return ".product-item"  # Same as static HTML adapters
-
-    def field_locator(self, field):
-        return {
-            "name": ".product-name",
-            "price": ".product-price",
-        }.get(field)
-
-    def extract_source_url(self, card, page):
-        return card.get_attr("a", "href")
-
-    def next_request(self, page, current):
-        # Same pagination logic as STATIC_HTML
-        return None
-```
-
-### Dynamic Parameters in Job Config
-
-Pass Selenium options via the `params` field:
+## Full Config Schema (Quick Reference)
 
 ```yaml
 job:
-  adapter: "my_dynamic_site"
-  start_url: "https://example.com/products"
-  params:
-    wait_selector: ".product-item"  # CSS selector to wait for
-    wait_time: 10                   # Max seconds to wait
-    click_selectors:                # (Optional) selectors to click before scraping
-      - "button.load-more"
-      - "a.expand"
-  max_pages: 2
-  delay_ms: 1000
-  field_schema: ["name", "price"]
+  id: string
+  name: string
+  adapter: string
+  start_url: http(s) url
+  method: string = GET
+  headers: dict = {}
+  params: dict = {}
+  body: any = null
+  execution_mode: memory|stream = memory
+  batch_size: int(1..100000) = 500
+  max_pages: int(1..1000) = 5
+  delay_ms: int(0..60000) = 800
+  dedupe_mode: BY_SOURCE_URL|BY_HASH = BY_SOURCE_URL
+  required_fields: [string]
+  field_schema: [string]
 
 sink:
-  type: "csv"
-  path: "output_dynamic.csv"
-```
-
-**Some Supported params:**
-
-- `wait_selector`: CSS selector to wait for before reading page (required for dynamic content)
-- `wait_time`: Maximum seconds to wait for selector (default: 30)
-- `click_selectors`: List of CSS selectors to click after page loads (optional)
-
-### How It Works
-
-1. Selenium navigates to the URL
-2. Waits for `wait_selector` to appear in the DOM
-3. Executes optional clicks
-4. Reads `driver.page_source` as HTML
-5. Framework parses HTML normally (same as `STATIC_HTML`)
-
-**Important Notes:**
-
-- Selenium returns `status_code=200` and empty `headers` (browsers don't expose HTTP metadata)
-- Browser instance runs in **headless mode** (no visible window)
-- Performance is slower than static HTML — use timeouts wisely
-- A single Chrome driver instance is reused across requests for efficiency
-
-### Example: Dynamic Site Job
-
-Use the included example:
-
-```bash
-scrape configs/jobs/dynamic_example.yaml
-```
-
-This demonstrates a realistic dynamic content scraping setup.
-
----
-
-## Enrichment (detail pages)
-
-Some sites hide data (phone, website) on detail pages.
-
-### How Enrichment Works
-
-1. **Enable enrichment** in your job config:
-
-   ```yaml
-   enrich:
-     enabled: true
-     fields: ["phone", "website", "availability"]
-   ```
-
-2. **Define detail selectors** in your adapter using the `detail:` prefix:
-
-   ```python
-   def field_locator(self, field: str) -> Optional[str]:
-       return {
-           "name": "h2",
-           "phone": ".phone",           # Used on listing page
-           "detail:phone": ".contact-phone, a[href^='tel:']",  # Used on detail page
-           "detail:website": ".website-link",
-           "detail:availability": ".availability-status",
-       }.get(field)
-   ```
-
-### Important: Detail Field Naming Convention
-
-**All fields that require enrichment MUST be defined in the adapter with the `detail:` prefix.**
-
-- `"phone"` - selector used on the listing page
-- `"detail:phone"` - selector used on the detail page during enrichment
-
-The engine automatically:
-
-- Scrapes listing pages first
-- Identifies missing fields from `enrich.fields`
-- Fetches detail pages for records with missing data
-- Uses `detail:` prefixed selectors to extract missing fields
-- Merges the data back into the original records
-
----
-
-## Processing Pipeline (post-scrape)
-
-Add optional post-scrape stages for business rules and analytics:
-
-```yaml
-processing:
-  enabled: true
-  schema_version: "1.0"
-  stages:
-    - plugin: "drop_if_field_empty"
-      type: "record"         # record | batch | analytics
-      on_error: "quarantine" # fail | skip | quarantine
-      config:
-        field: "phone"
-    - plugin: "field_coverage_analytics"
-      type: "analytics"
-      on_error: "skip"
-      config:
-        fields: ["name", "phone", "address"]
-```
-
-### JSONL
-
-```yaml
-sink:
-  type: "jsonl"
-  path: "output.jsonl"
-  write_mode: "overwrite"  # overwrite | append
-```
-
-Built-in plugins:
-
-- `drop_if_field_empty` (record filter)
-- `field_coverage_analytics` (stage artifacts for field coverage metrics)
-- `pass_through` (no-op)
-
-Processing contracts:
-
-- Schema-validated records at each stage (`schema_version: "1.0"`)
-- Idempotent plugins
-- Per-stage error policy: `fail`, `skip`, `quarantine`
-- Per-stage metrics: `records_in`, `records_out`, `dropped`, `errors`, `latency_ms`
-
----
-
-## Normalization
-
-Centralized cleanup:
-
-- ratings (4.7, ★★★★★, Rated 4.7/5)
-- reviews (1,234 / 1.2k)
-- prices ($12.99 / EUR 12,99)
-- phones, URLs, text cleanup
-
----
-
-## Scheduled Scraping
-
-For recurring data collection, add a `schedule` section to your job YAML:
-
-```yaml
-job:
-  # ... job config ...
-
-schedule:
-  enabled: true
-  interval_hours: 24  # Run every 24 hours
-```
-
-Run the scheduled job:
-
-```bash
-scrape configs/jobs/scheduled_job.yaml
-```
-
-The framework automatically detects scheduled jobs and runs them continuously. Stop with Ctrl+C.
-
----
-
-## Factory Layer
-
-All dependency wiring lives in one place, keeping the entrypoint clean and testable.
-
----
-
-## Configuration Validation
-
-The framework uses **Pydantic** for robust YAML configuration validation with clear error messages:
-
-### Benefits
-
-- **Runtime Safety**: Catch configuration errors before scraping starts
-- **Clear Messages**: Field-specific error messages with suggestions
-- **Developer Experience**: IDE autocompletion and type hints
-- **Self-Documenting**: Models serve as configuration documentation
-- **Production Ready**: Prevents runtime failures from bad configs
-
-### Validation Features
-
-- **Required fields** validation
-- **Type checking** (strings, integers, enums)
-- **URL validation** for start URLs
-- **Enum validation** for dedupe modes and sink types
-- **Range validation** for delays and page limits
-- **Cross-field validation** (enrich fields must be in schema)
-- **Processing policy validation** (schema version, stage type, error policy)
-- **Clear error messages** with field paths
-
-### Testing Validation
-
-Run the validation test script to see examples:
-
-```bash
-python test_validation.py
-```
-
-This demonstrates:
-
-- Valid configurations pass
-- Invalid configurations fail with clear messages
-- Various validation scenarios (missing fields, invalid enums, etc.)
-
-**Example Error Output:**
-
-```bash
-Configuration validation failed:
-  job.dedupe_mode: Input should be 'BY_SOURCE_URL' or 'BY_HASH'
-  job.max_pages: Input should be less than or equal to 1000
-  sink.type: Unknown sink type: 'invalid'. Must be "csv" or "google_sheets"
-```
-
-### Configuration Schema
-
-```yaml
-job:
-  id: string (required)           # Unique job identifier
-  name: string (required)         # Human-readable name
-  adapter: string (required)      # Adapter to use
-  start_url: url (required)       # Must be http/https
-  method: string                  # Default: GET
-  headers: dict                   # HTTP headers (optional)
-  params: dict                    # Query params or Selenium options (optional)
-  execution_mode: enum            # memory or stream (default: memory)
-  batch_size: int (1-100000)      # Default: 500, used in stream mode
-  max_pages: int (1-1000)         # Default: 5
-  delay_ms: int (0-60000)         # Default: 800
-  dedupe_mode: enum               # BY_SOURCE_URL or BY_HASH
-  required_fields: [string]       # Default: ["name", "source_url"]
-  field_schema: [string]          # Expected output fields
-
-# For DYNAMIC mode, params can contain:
-#   wait_selector: string         # CSS selector to wait for
-#   wait_time: int                # Seconds to wait (default: 30)
-#   click_selectors: [string]     # Selectors to click after load
-
-sink:  # Required
-  type: enum (csv|google_sheets|jsonl)
-  # CSV / JSONL options
+  # CSV
+  type: csv
   path: string
-  write_mode: enum (overwrite|append)
-  # Google Sheets options
+  write_mode: overwrite|append = overwrite
+  # JSONL
+  type: jsonl
+  path: string
+  write_mode: overwrite|append = overwrite
+  # Google Sheets
+  type: google_sheets
   sheet_id: string
   tab: string
-  credentials_path: string
-  mode: enum (append|replace|upsert)
-  key_field: string  # Required for upsert
+  credentials_path: string = service_account.json
+  mode: append|replace|upsert = append
+  key_field: string (required if mode=upsert)
 
-enrich:  # Optional
-  enabled: bool
-  fields: [string]  # Must be in field_schema if enabled, require detail:* selectors in adapter
+enrich:
+  enabled: bool = false
+  fields: [string] = []
 
-processing:  # Optional
-  enabled: bool
-  schema_version: enum ("1.0")
+processing:
+  enabled: bool = false
+  schema_version: "1.0"
   stages:
     - plugin: string
-      type: enum (record|batch|analytics)
-      on_error: enum (fail|skip|quarantine)
-      config: dict
+      type: record|batch|analytics = record
+      on_error: fail|skip|quarantine = fail
+      config: dict = {}
 
-schedule:  # Optional
-  enabled: bool
-  interval_hours: int (1-168)
+schedule:
+  enabled: bool = false
+  interval_hours: int(1..168) = 24
 ```
 
 ---
 
 ## Logging
 
-Logging is configured in:
+Configured in `configs/logging.yaml`.
 
-```text
-configs/logging.yaml
-```
-
-Logs show:
+Logs include:
 
 - page fetch progress
 - cards found
-- records emitted / skipped
-- enrichment failures
+- chunk flush summaries (stream mode)
+- sink write summaries
+- records emitted/skipped/quarantined
+- processing stage failures and timings
 
 ---
 
-## Reliability
+## Reliability Notes
 
-- structured logging
-- retry with backoff
-- rate limiting
-- failure reporting
-
----
-
-## GitHub Actions Integration
-
-Run scheduled scraping jobs automatically using GitHub Actions:
-
-### Automated Scheduling
-
-The `scheduled-scraping.yml` workflow runs on a cron schedule:
-
-```yaml
-on:
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
-```
-
-### Manual Execution
-
-Use `manual-scraping.yml` for on-demand runs:
-
-- Go to Actions tab → Manual Scraping → Run workflow
-- Choose your job configuration file
-- Select execution mode (one-time or scheduled)
-
-### Setup Requirements
-
-1. **Google Sheets (optional)**: Add `GOOGLE_SHEETS_CREDENTIALS` secret
-2. **Schedule customization**: Edit cron expression in workflow file
-3. **Job configurations**: Create YAML files in `configs/jobs/`
-
-See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md) for detailed setup instructions.
+- retry + backoff in HTTP layer
+- rate limiting between requests
+- dedupe strategies (`BY_SOURCE_URL`, `BY_HASH`)
+- non-destructive Google Sheets header handling
+- processing error policies (`fail`, `skip`, `quarantine`)
 
 ---
 
-## Summary
+## GitHub Actions
 
-This framework is:
+Automate scheduled/manual runs using:
 
-- reusable
-- testable
-- config-driven
-- production-oriented
+- `scheduled-scraping.yml`
+- `manual-scraping.yml`
 
-It is designed to scale beyond one-off scripts.
+See `GITHUB_ACTIONS_SETUP.md` for setup details.
