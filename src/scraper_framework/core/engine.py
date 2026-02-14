@@ -104,7 +104,6 @@ class ScrapeEngine:
                         continue
 
                     records.append(rec)
-                    report.records_emitted += 1
 
                 current = self.parser.next_request(page, self.adapter, current)
                 pages += 1
@@ -112,6 +111,7 @@ class ScrapeEngine:
                 limiter.sleep()
 
             records = self.deduper.dedupe(records)
+            report.records_emitted = len(records)
             self.sink.write(job, records)
 
             self.log.info(

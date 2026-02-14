@@ -142,7 +142,7 @@ class ScraperConfig(BaseModel):
             # Create and assign the validated model
             self.sink = JsonlSinkConfig(**sink_data)
         else:
-            raise ValueError(f'Unknown sink type: {sink_type}. Must be "csv" or "google_sheets"')
+            raise ValueError(f'Unknown sink type: {sink_type}. Must be "csv" , "google_sheets" or "jsonl"')
 
         return self
 
@@ -228,7 +228,7 @@ def config_to_job_objects(config: ScraperConfig) -> tuple:
         delay_ms=config.job.delay_ms,
         required_fields=set(config.job.required_fields),
         dedupe_mode=config.job.dedupe_mode,
-        field_schema=set(config.job.field_schema),
+        field_schema=list(config.job.field_schema),
         enrich=enrich,
         sink_config=config.sink.model_dump(),  # Convert model back to dict for framework
     )

@@ -57,11 +57,27 @@ class GoogleSheetsSink(Sink):
         return sh.worksheet(tab)
 
     def _ensure_header(self, ws, header: List[str]) -> None:
-        """Ensure the worksheet has the correct header."""
+        """
+        Ensure the worksheet has the expected header without destructive resets.
+
+        Behavior:
+          - If row 1 is empty, write the header.
+          - If row 1 matches, do nothing.
+          - If row 1 differs, fail fast to avoid writing misaligned rows or
+            clearing existing data.
+        """
         existing = ws.row_values(1)
-        if existing != header:
-            ws.clear()
-            ws.append_row(header, value_input_option="USER_ENTERED")
+        if not existing:
+            ws.update("A1", [header], value_input_option="USER_ENTERED")
+            return
+
+        if existing == header:
+            return
+
+        raise ValueError(
+            "Google Sheets header mismatch on row 1; refusing to clear existing data. "
+            f"expected={header} existing={existing}"
+        )
 
     def _record_to_row(self, r: Record, header: List[str]) -> List[Any]:
         """Convert a record to a row list."""

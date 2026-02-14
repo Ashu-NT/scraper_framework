@@ -24,7 +24,7 @@ job:
     scroll_max_pages: 25  # adapter-controlled stop conditions
     scroll_stall_limit: 3
 
-    clicks_enabled: false   
+    click_enabled: false   
     click_selector: "button.load-more"
     click_timeout: 4
     click_pause: 0.9

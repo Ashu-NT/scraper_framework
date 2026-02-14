@@ -12,15 +12,15 @@ from scraper_framework.config_models import load_and_validate_config
 
 def test_valid_config():
     """Test that valid configs pass validation."""
-    print("🧪 Testing valid configuration...")
+    print("Testing valid configuration...")
     try:
         config = load_and_validate_config('configs/jobs/example_static.yaml')
-        print("✅ Valid config loaded successfully!")
+        print("Valid config loaded successfully!")
         print(f"   Job: {config.job.name}")
         print(f"   Sink: {config.sink.type}")
         return True
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"Unexpected error: {e}")
         return False
 
 def test_invalid_configs():
@@ -85,7 +85,7 @@ def test_invalid_configs():
         }
     ]
 
-    print("\n🧪 Testing invalid configurations...")
+    print("\nTesting invalid configurations...")
 
     for i, test_case in enumerate(test_cases, 1):
         print(f"\n{i}. {test_case['name']}")
@@ -97,23 +97,23 @@ def test_invalid_configs():
 
         try:
             load_and_validate_config(temp_path)
-            print("❌ Should have failed validation!")
+            print("Should have failed validation!")
         except ValueError as e:
-            print("✅ Correctly caught validation error:")
+            print("Correctly caught validation error:")
             print(f"   {str(e).split(':', 1)[1].strip()}")
         except Exception as e:
-            print(f"❌ Unexpected error: {e}")
+            print(f"Unexpected error: {e}")
         finally:
             os.unlink(temp_path)
 
 if __name__ == "__main__":
-    print("🔍 Configuration Validation Tests\n")
+    print("Configuration Validation Tests\n")
 
     success = test_valid_config()
     test_invalid_configs()
 
     if success:
-        print("\n🎉 All tests completed!")
+        print("\nAll tests completed!")
     else:
-        print("\n❌ Some tests failed!")
+        print("\nSome tests failed!")
         sys.exit(1)

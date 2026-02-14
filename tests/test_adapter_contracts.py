@@ -33,7 +33,7 @@ class TestAdapterContracts(unittest.TestCase):
     def test_all_adapters_have_valid_modes(self):
         """Test that all adapters have valid scraping modes."""
         adapters = get_registered_adapters()
-        valid_modes = {"STATIC_HTML", "JSON_API"}
+        valid_modes = {"STATIC_HTML", "JSON_API", "DYNAMIC"}
 
         for adapter in adapters:
             mode = adapter.mode()

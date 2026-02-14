@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Set
+from typing import Any, Dict, List, Set
 
 
 class DedupeMode(str, Enum):
@@ -37,7 +37,7 @@ class ScrapeJob:
     delay_ms: int = 800
     required_fields: Set[str] = field(default_factory=lambda: {"name", "source_url"})
     dedupe_mode: DedupeMode = DedupeMode.BY_SOURCE_URL
-    field_schema: Set[str] = field(default_factory=set)
+    field_schema: List[str] = field(default_factory=list)
     enrich: EnrichConfig = field(default_factory=EnrichConfig)
     sink_config: Dict[str, Any] = field(default_factory=dict)
 
