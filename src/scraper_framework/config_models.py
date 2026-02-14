@@ -8,7 +8,13 @@ from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from enum import Enum
 import yaml
-from scraper_framework.core.models import ScrapeJob, RequestSpec, EnrichConfig as CoreEnrichConfig
+from scraper_framework.core.models import (
+    ScrapeJob,
+    RequestSpec,
+    EnrichConfig as CoreEnrichConfig,
+    ProcessingConfig as CoreProcessingConfig,
+    ProcessingStage as CoreProcessingStage,
+)
     
 class DedupeMode(str, Enum):
     """Enumeration for deduplication modes."""
@@ -26,6 +32,16 @@ class JobConfig(BaseModel):
     headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers")
     params: Dict[str, Any] = Field(default_factory=dict, description="URL query parameters")
     body: Optional[Any] = Field(None, description="Request body for POST requests")
+    execution_mode: Literal["memory", "stream"] = Field(
+        "memory",
+        description="Execution mode: memory (all-in-memory) or stream (chunked flush)",
+    )
+    batch_size: int = Field(
+        500,
+        ge=1,
+        le=100000,
+        description="Chunk size used when execution_mode is stream",
+    )
     max_pages: int = Field(5, ge=1, le=1000, description="Maximum number of pages to scrape")
     delay_ms: int = Field(800, ge=0, le=60000, description="Delay between requests in milliseconds")
     dedupe_mode: DedupeMode = Field(DedupeMode.BY_SOURCE_URL, description="Deduplication strategy")
@@ -62,10 +78,56 @@ class EnrichConfig(BaseModel):
         return self
 
 
+class ProcessingStageConfig(BaseModel):
+    """Configuration for a single post-processing stage."""
+    plugin: str = Field(..., description="Registered processing plugin name")
+    type: Literal["record", "batch", "analytics"] = Field(
+        "record",
+        description="Stage execution type",
+    )
+    on_error: Literal["fail", "skip", "quarantine"] = Field(
+        "fail",
+        description="Stage error handling policy",
+    )
+    config: Dict[str, Any] = Field(default_factory=dict, description="Plugin-specific config")
+
+    @field_validator("plugin")
+    @classmethod
+    def validate_plugin(cls, v):
+        if not str(v or "").strip():
+            raise ValueError("processing stage plugin cannot be empty")
+        return str(v).strip()
+
+
+class ProcessingConfig(BaseModel):
+    """Configuration for the processing pipeline."""
+    enabled: bool = Field(False, description="Whether post-processing pipeline is enabled")
+    schema_version: str = Field("1.0", description="Processing schema version between stages")
+    stages: List[ProcessingStageConfig] = Field(default_factory=list, description="Ordered processing stages")
+
+    @field_validator("schema_version")
+    @classmethod
+    def validate_schema_version(cls, v):
+        allowed = {"1.0"}
+        if v not in allowed:
+            raise ValueError(f"processing.schema_version must be one of: {sorted(allowed)}")
+        return v
+
+    @model_validator(mode='after')
+    def validate_enabled_stages(self):
+        if self.enabled and not self.stages:
+            raise ValueError("processing.stages cannot be empty when processing.enabled is True")
+        return self
+
+
 class CsvSinkConfig(BaseModel):
     """Configuration for CSV sink."""
     type: Literal["csv"]
     path: str = Field(..., description="Path to output CSV file")
+    write_mode: Literal["overwrite", "append"] = Field(
+        "overwrite",
+        description="File write mode: overwrite (truncate) or append",
+    )
 
 
 class GoogleSheetsSinkConfig(BaseModel):
@@ -95,6 +157,10 @@ class JsonlSinkConfig(BaseModel):
     """Configuration for JSONL sink."""
     type: Literal["jsonl"]
     path: str = Field(..., description="Path to output JSONL file")
+    write_mode: Literal["overwrite", "append"] = Field(
+        "overwrite",
+        description="File write mode: overwrite (truncate) or append",
+    )
 
 class ScheduleConfig(BaseModel):
     """Configuration for scheduled execution."""
@@ -113,6 +179,7 @@ class ScraperConfig(BaseModel):
     job: JobConfig
     sink: Dict[str, Any] = Field(..., description="Sink configuration")
     enrich: EnrichConfig = Field(default_factory=EnrichConfig)
+    processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
 
     @model_validator(mode='after')
@@ -220,16 +287,33 @@ def config_to_job_objects(config: ScraperConfig) -> tuple:
         fields=set(config.enrich.fields),
     )
 
+    processing = CoreProcessingConfig(
+        enabled=config.processing.enabled,
+        schema_version=config.processing.schema_version,
+        stages=[
+            CoreProcessingStage(
+                plugin=stage.plugin,
+                stage_type=stage.type,
+                on_error=stage.on_error,
+                config=dict(stage.config),
+            )
+            for stage in config.processing.stages
+        ],
+    )
+
     job = ScrapeJob(
         id=config.job.id,
         name=config.job.name,
         start=start,
+        execution_mode=config.job.execution_mode,
+        batch_size=config.job.batch_size,
         max_pages=config.job.max_pages,
         delay_ms=config.job.delay_ms,
         required_fields=set(config.job.required_fields),
         dedupe_mode=config.job.dedupe_mode,
         field_schema=list(config.job.field_schema),
         enrich=enrich,
+        processing=processing,
         sink_config=config.sink.model_dump(),  # Convert model back to dict for framework
     )
 

@@ -34,7 +34,7 @@ You can add a **new site** by writing a single adapter file — or later, only b
 ## Architecture (High Level)
 
 Pipeline:
-**Fetch → Parse → Extract → Enrich → Normalize → Validate → Dedupe → Sink**
+**Fetch → Parse → Extract → Enrich → Normalize → Validate → Dedupe → Processing → Sink**
 
 Key components:
 
@@ -49,6 +49,7 @@ Key components:
 | Normalizer | Cleans messy data |
 | Validator | Ensures required fields exist |
 | DedupeStrategy | Removes duplicates |
+| ProcessingRunner | Runs post-scrape business/analytics stages |
 | Enricher | Optional detail-page scraping |
 | Sink | Writes output (CSV / Google Sheets) |
 
@@ -76,6 +77,7 @@ scraper_framework/
 │  ├─ adapters/
 │  ├─ transform/
 │  ├─ enrich/
+│  ├─ process/
 │  ├─ sinks/
 │  └─ utils/
 ├─ tests/
@@ -114,6 +116,8 @@ job:
   name: "BooksToScrape to CSV"
   adapter: "books_toscrape"
   start_url: "https://books.toscrape.com/catalogue/page-1.html"
+  execution_mode: "memory"  # memory | stream
+  batch_size: 500           # used when execution_mode=stream
   max_pages: 2
   delay_ms: 800
   dedupe_mode: "BY_SOURCE_URL"
@@ -123,9 +127,13 @@ job:
 enrich:
   enabled: false
 
+processing:
+  enabled: false
+
 sink:
   type: "csv"
   path: "output_books.csv"
+  write_mode: "overwrite"   # overwrite | append
 ```
 
 ### Step 2: Run the job
@@ -156,6 +164,23 @@ factory builds components
 engine.run(job)
 ```
 
+### Streaming Mode (chunked processing)
+
+For large datasets, avoid keeping all records in memory:
+
+```yaml
+job:
+  execution_mode: "stream"
+  batch_size: 500
+```
+
+Stream mode behavior:
+
+- records are buffered up to `batch_size`
+- each chunk runs: `dedupe -> processing -> sink.write`
+- dedupe remains global across chunks for the whole run
+- logs include per-chunk flush stats
+
 ---
 
 ## Output options
@@ -166,6 +191,7 @@ engine.run(job)
 sink:
   type: "csv"
   path: "output.csv"
+  write_mode: "overwrite"  # overwrite (first write truncates) | append
 ```
 
 ### Google Sheets
@@ -418,6 +444,51 @@ The engine automatically:
 
 ---
 
+## Processing Pipeline (post-scrape)
+
+Add optional post-scrape stages for business rules and analytics:
+
+```yaml
+processing:
+  enabled: true
+  schema_version: "1.0"
+  stages:
+    - plugin: "drop_if_field_empty"
+      type: "record"         # record | batch | analytics
+      on_error: "quarantine" # fail | skip | quarantine
+      config:
+        field: "phone"
+    - plugin: "field_coverage_analytics"
+      type: "analytics"
+      on_error: "skip"
+      config:
+        fields: ["name", "phone", "address"]
+```
+
+### JSONL
+
+```yaml
+sink:
+  type: "jsonl"
+  path: "output.jsonl"
+  write_mode: "overwrite"  # overwrite | append
+```
+
+Built-in plugins:
+
+- `drop_if_field_empty` (record filter)
+- `field_coverage_analytics` (stage artifacts for field coverage metrics)
+- `pass_through` (no-op)
+
+Processing contracts:
+
+- Schema-validated records at each stage (`schema_version: "1.0"`)
+- Idempotent plugins
+- Per-stage error policy: `fail`, `skip`, `quarantine`
+- Per-stage metrics: `records_in`, `records_out`, `dropped`, `errors`, `latency_ms`
+
+---
+
 ## Normalization
 
 Centralized cleanup:
@@ -478,6 +549,7 @@ The framework uses **Pydantic** for robust YAML configuration validation with cl
 - **Enum validation** for dedupe modes and sink types
 - **Range validation** for delays and page limits
 - **Cross-field validation** (enrich fields must be in schema)
+- **Processing policy validation** (schema version, stage type, error policy)
 - **Clear error messages** with field paths
 
 ### Testing Validation
@@ -514,6 +586,8 @@ job:
   method: string                  # Default: GET
   headers: dict                   # HTTP headers (optional)
   params: dict                    # Query params or Selenium options (optional)
+  execution_mode: enum            # memory or stream (default: memory)
+  batch_size: int (1-100000)      # Default: 500, used in stream mode
   max_pages: int (1-1000)         # Default: 5
   delay_ms: int (0-60000)         # Default: 800
   dedupe_mode: enum               # BY_SOURCE_URL or BY_HASH
@@ -526,9 +600,10 @@ job:
 #   click_selectors: [string]     # Selectors to click after load
 
 sink:  # Required
-  type: enum (csv|google_sheets)
-  # CSV options
+  type: enum (csv|google_sheets|jsonl)
+  # CSV / JSONL options
   path: string
+  write_mode: enum (overwrite|append)
   # Google Sheets options
   sheet_id: string
   tab: string
@@ -539,6 +614,15 @@ sink:  # Required
 enrich:  # Optional
   enabled: bool
   fields: [string]  # Must be in field_schema if enabled, require detail:* selectors in adapter
+
+processing:  # Optional
+  enabled: bool
+  schema_version: enum ("1.0")
+  stages:
+    - plugin: string
+      type: enum (record|batch|analytics)
+      on_error: enum (fail|skip|quarantine)
+      config: dict
 
 schedule:  # Optional
   enabled: bool

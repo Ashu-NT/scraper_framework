@@ -28,17 +28,37 @@ class EnrichConfig:
 
 
 @dataclass(frozen=True)
+class ProcessingStage:
+    """Configuration for a single processing stage."""
+    plugin: str
+    stage_type: str = "record"  # record | batch | analytics
+    on_error: str = "fail"  # fail | skip | quarantine
+    config: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProcessingConfig:
+    """Configuration for post-scrape processing pipeline."""
+    enabled: bool = False
+    schema_version: str = "1.0"
+    stages: List[ProcessingStage] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class ScrapeJob:
     """Configuration for a scraping job."""
     id: str
     name: str
     start: RequestSpec
+    execution_mode: str = "memory"  # memory | stream
+    batch_size: int = 500
     max_pages: int = 5
     delay_ms: int = 800
     required_fields: Set[str] = field(default_factory=lambda: {"name", "source_url"})
     dedupe_mode: DedupeMode = DedupeMode.BY_SOURCE_URL
     field_schema: List[str] = field(default_factory=list)
     enrich: EnrichConfig = field(default_factory=EnrichConfig)
+    processing: ProcessingConfig = field(default_factory=ProcessingConfig)
     sink_config: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -75,7 +95,10 @@ class ScrapeReport:
     cards_found: int = 0
     records_emitted: int = 0
     records_skipped: int = 0
+    records_quarantined: int = 0
     failures: Dict[str, int] = field(default_factory=dict)
+    processing_stage_metrics: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    processing_artifacts: Dict[str, Any] = field(default_factory=dict)
 
     def bump_failure(self, key: str) -> None:
         """Increment the count for a specific failure type."""

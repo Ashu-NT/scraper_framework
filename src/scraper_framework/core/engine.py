@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional, Any
+from typing import Any, Dict, List, Optional, Set
 
 from scraper_framework.core.models import Page, Record, RequestSpec, ScrapeJob, ScrapeReport
 from scraper_framework.fetch.strategies import FetchStrategy
@@ -9,6 +9,7 @@ from scraper_framework.transform.normalizers import Normalizer
 from scraper_framework.transform.validators import Validator
 from scraper_framework.transform.dedupe import DedupeStrategy
 from scraper_framework.sinks.base import Sink
+from scraper_framework.process.runner import ProcessingRunner
 from scraper_framework.utils.time import utc_now_iso
 from scraper_framework.utils.hashing import normalize_text, stable_hash
 from scraper_framework.http.policies import RateLimiter
@@ -29,6 +30,7 @@ class ScrapeEngine:
         deduper: DedupeStrategy,
         sink: Sink,
         enricher=None,
+        processor_runner: Optional[ProcessingRunner] = None,
     ):
         """
         Initialize the scrape engine with all necessary components.
@@ -42,6 +44,7 @@ class ScrapeEngine:
             deduper: Strategy for deduplicating records.
             sink: Output sink for writing records.
             enricher: Optional enricher for additional data fetching.
+            processor_runner: Optional processing pipeline runner.
         """
         self.fetcher = fetcher
         self.parser = parser
@@ -51,6 +54,7 @@ class ScrapeEngine:
         self.deduper = deduper
         self.sink = sink
         self.enricher = enricher
+        self.processor_runner = processor_runner
         self.log = get_logger("scraper_framework.engine")
 
     def run(self, job: ScrapeJob) -> ScrapeReport:
@@ -65,6 +69,14 @@ class ScrapeEngine:
         """
         report = ScrapeReport()
         records: List[Record] = []
+        stream_buffer: List[Record] = []
+        seen_dedupe_keys: Set[str] = set()
+        chunks_flushed = 0
+        execution_mode = str(getattr(job, "execution_mode", "memory")).lower()
+        if execution_mode not in {"memory", "stream"}:
+            raise ValueError("job.execution_mode must be 'memory' or 'stream'")
+        stream_mode = execution_mode == "stream"
+        batch_size = max(1, int(getattr(job, "batch_size", 500)))
 
         try:
             limiter = RateLimiter(job.delay_ms)
@@ -72,7 +84,13 @@ class ScrapeEngine:
             current: Optional[RequestSpec] = job.start
             pages = 0
 
-            self.log.info("Job started: %s (%s)", job.name, job.id)
+            self.log.info(
+                "Job started: %s (%s) mode=%s batch_size=%s",
+                job.name,
+                job.id,
+                execution_mode,
+                batch_size,
+            )
 
             while current and pages < job.max_pages:
                 self.log.info("Fetching page %s: %s", pages + 1, current.url)
@@ -103,26 +121,159 @@ class ScrapeEngine:
                         report.bump_failure(vr.reason)
                         continue
 
-                    records.append(rec)
+                    if stream_mode:
+                        stream_buffer.append(rec)
+                        if len(stream_buffer) >= batch_size:
+                            chunks_flushed += 1
+                            self._flush_stream_chunk(
+                                job=job,
+                                chunk_records=stream_buffer,
+                                seen_dedupe_keys=seen_dedupe_keys,
+                                report=report,
+                                chunk_index=chunks_flushed,
+                            )
+                            stream_buffer = []
+                    else:
+                        records.append(rec)
 
                 current = self.parser.next_request(page, self.adapter, current)
                 pages += 1
 
                 limiter.sleep()
 
-            records = self.deduper.dedupe(records)
-            report.records_emitted = len(records)
-            self.sink.write(job, records)
+            if stream_mode:
+                if stream_buffer:
+                    chunks_flushed += 1
+                    self._flush_stream_chunk(
+                        job=job,
+                        chunk_records=stream_buffer,
+                        seen_dedupe_keys=seen_dedupe_keys,
+                        report=report,
+                        chunk_index=chunks_flushed,
+                    )
+
+                # Keep legacy behavior for empty runs (create empty output/header where applicable).
+                if report.records_emitted == 0:
+                    self.sink.write(job, [])
+            else:
+                records = self.deduper.dedupe(records)
+                records = self._apply_processing(job, records, report)
+                report.records_emitted = len(records)
+                self.sink.write(job, records)
 
             self.log.info(
-                "Job done: pages=%s cards=%s emitted=%s skipped=%s",
-                report.pages_fetched, report.cards_found, report.records_emitted, report.records_skipped
+                "Job done: mode=%s pages=%s cards=%s emitted=%s skipped=%s quarantined=%s chunks=%s",
+                execution_mode,
+                report.pages_fetched,
+                report.cards_found,
+                report.records_emitted,
+                report.records_skipped,
+                report.records_quarantined,
+                chunks_flushed,
             )
         finally:
             # Clean up any resources (e.g., Selenium driver for DYNAMIC mode)
             self._cleanup()
 
         return report
+
+    def _flush_stream_chunk(
+        self,
+        job: ScrapeJob,
+        chunk_records: List[Record],
+        seen_dedupe_keys: Set[str],
+        report: ScrapeReport,
+        chunk_index: int,
+    ) -> None:
+        """Flush one stream chunk through dedupe -> processing -> sink."""
+        if not chunk_records:
+            return
+
+        deduped_records, local_unique_count, cross_chunk_duplicates = self._dedupe_stream_chunk(
+            chunk_records, seen_dedupe_keys
+        )
+        processed_records = self._apply_processing(job, deduped_records, report)
+
+        written = len(processed_records)
+        if written:
+            self.sink.write(job, processed_records)
+            report.records_emitted += written
+
+        self.log.info(
+            "Chunk flushed: index=%s input=%s local_unique=%s cross_chunk_duplicates=%s written=%s",
+            chunk_index,
+            len(chunk_records),
+            local_unique_count,
+            cross_chunk_duplicates,
+            written,
+        )
+
+    def _dedupe_stream_chunk(
+        self,
+        records: List[Record],
+        seen_dedupe_keys: Set[str],
+    ) -> tuple[List[Record], int, int]:
+        """Deduplicate records within chunk and across previous chunks."""
+        local_unique = self.deduper.dedupe(records)
+
+        unique_records: List[Record] = []
+        cross_chunk_duplicates = 0
+
+        for record in local_unique:
+            key = str(self.deduper.key(record) or "").strip()
+            if not key:
+                continue
+            if key in seen_dedupe_keys:
+                cross_chunk_duplicates += 1
+                continue
+            seen_dedupe_keys.add(key)
+            unique_records.append(record)
+
+        return unique_records, len(local_unique), cross_chunk_duplicates
+
+    def _apply_processing(self, job: ScrapeJob, records: List[Record], report: ScrapeReport) -> List[Record]:
+        """Apply processing pipeline when enabled, while accumulating report metrics."""
+        if not records:
+            return records
+
+        if not self.processor_runner or not getattr(job, "processing", None) or not job.processing.enabled:
+            return records
+
+        processing_result = self.processor_runner.run(job, records)
+        report.records_quarantined += processing_result.records_quarantined
+        self._merge_stage_metrics(report, processing_result.stage_metrics)
+        self._merge_processing_artifacts(report, processing_result.artifacts)
+        return processing_result.records
+
+    def _merge_stage_metrics(self, report: ScrapeReport, stage_metrics: Dict[str, Dict[str, Any]]) -> None:
+        for stage_name, metric in stage_metrics.items():
+            existing = report.processing_stage_metrics.get(stage_name)
+            if not existing:
+                report.processing_stage_metrics[stage_name] = dict(metric)
+                continue
+
+            existing["records_in"] = existing.get("records_in", 0) + int(metric.get("records_in", 0))
+            existing["records_out"] = existing.get("records_out", 0) + int(metric.get("records_out", 0))
+            existing["dropped"] = existing.get("dropped", 0) + int(metric.get("dropped", 0))
+            existing["errors"] = existing.get("errors", 0) + int(metric.get("errors", 0))
+            existing["latency_ms"] = round(
+                float(existing.get("latency_ms", 0.0)) + float(metric.get("latency_ms", 0.0)),
+                3,
+            )
+            report.processing_stage_metrics[stage_name] = existing
+
+    def _merge_processing_artifacts(self, report: ScrapeReport, artifacts: Dict[str, Any]) -> None:
+        for stage_name, artifact in artifacts.items():
+            if stage_name not in report.processing_artifacts:
+                report.processing_artifacts[stage_name] = artifact
+                continue
+
+            existing = report.processing_artifacts[stage_name]
+            if isinstance(existing, list):
+                existing.append(artifact)
+                report.processing_artifacts[stage_name] = existing
+            else:
+                report.processing_artifacts[stage_name] = [existing, artifact]
 
     def extract(self, card, page: Page, job: ScrapeJob) -> Optional[Record]:
         """

@@ -1,0 +1,39 @@
+job:
+  id: "contact_info_processing_demo"
+  name: "Scrape + Processing Demo"
+  adapter: "test_static"
+  start_url: "https://lakewooddirectory.com/white/advanced-search-dec-27/?acs-action=advanced-search"
+  execution_mode: "stream"
+  batch_size: 300
+  max_pages: 2
+  delay_ms: 1200
+  dedupe_mode: "BY_SOURCE_URL"
+  required_fields: ["source_url"]
+  field_schema: ["name", "address", "phone"]
+
+enrich:
+  enabled: false
+
+processing:
+  enabled: true
+  schema_version: "1.0"
+  stages:
+    - plugin: "drop_if_field_empty"
+      type: "record"
+      on_error: "quarantine"
+      config:
+        field: "phone"
+    - plugin: "field_coverage_analytics"
+      type: "analytics"
+      on_error: "skip"
+      config:
+        fields: ["name", "phone", "address"]
+
+sink:
+  type: "jsonl"
+  path: "output_contact_info_processed.jsonl"
+  write_mode: "overwrite"
+
+schedule:
+  enabled: false
+  interval_hours: 24

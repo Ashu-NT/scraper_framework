@@ -18,6 +18,8 @@ from scraper_framework.parse.parsers import HtmlPageParser, JsonPageParser, Page
 from scraper_framework.sinks.csv_sink import CsvSink
 from scraper_framework.sinks.gsheet_sink import GoogleSheetsSink
 from scraper_framework.sinks.base import Sink
+from scraper_framework.process.registry import create_default_registry
+from scraper_framework.process.runner import ProcessingRunner
 from scraper_framework.transform.dedupe import HashDedupeStrategy, UrlDedupeStrategy, DedupeStrategy
 from scraper_framework.transform.normalizers import DefaultNormalizer, Normalizer
 from scraper_framework.transform.validators import RequiredFieldsValidator, Validator
@@ -33,6 +35,7 @@ class BuiltComponents:
     normalizer: Normalizer
     validator: Validator
     enricher: Optional[DetailPageEnricher]
+    processor_runner: ProcessingRunner
 
 
 class ComponentFactory:
@@ -63,6 +66,7 @@ class ComponentFactory:
         validator = self._validator()
         sink = self._sink(job)
         enricher = self._enricher(job, fetcher)
+        processor_runner = self._processor_runner()
 
         engine = ScrapeEngine(
             fetcher=fetcher,
@@ -73,6 +77,7 @@ class ComponentFactory:
             deduper=deduper,
             sink=sink,
             enricher=enricher,
+            processor_runner=processor_runner,
         )
 
         return BuiltComponents(
@@ -84,6 +89,7 @@ class ComponentFactory:
             normalizer=normalizer,
             validator=validator,
             enricher=enricher,
+            processor_runner=processor_runner,
         )
 
     # ---------- Builders (private) ----------
@@ -150,3 +156,7 @@ class ComponentFactory:
 
         fields = job.enrich.fields or {"phone", "website", "address"}
         return DetailPageEnricher(fetcher=fetcher, fields=set(fields))
+
+    def _processor_runner(self) -> ProcessingRunner:
+        """Create the processing pipeline runner with built-in plugins."""
+        return ProcessingRunner(registry=create_default_registry())
