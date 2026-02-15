@@ -70,13 +70,4 @@ class DynamicExampleAdapter(SiteAdapter):
 
     def next_request(self, page: Page, current: RequestSpec) -> Optional[RequestSpec]:
         """Extract the next page request from the current page."""
-        # For demonstration: look for a next button or pagination link
-        html = page.raw
-        markers = ["next", "more", "load-more", '">']
-        for marker in ["href=\"([^\"]*next", "href='([^']*next"]:
-            import re
-            m = re.search(marker, html, re.IGNORECASE)
-            if m:
-                next_url = urljoin(page.url, m.group(1))
-                return RequestSpec(url=next_url, headers=current.headers, params=current.params, method="GET", body=None)
         return None
