@@ -4,17 +4,17 @@ Test script to demonstrate Pydantic configuration validation.
 Run this to see validation in action with various invalid configs.
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+import sys
 
 from scraper_framework.config_models import load_and_validate_config
+
 
 def test_valid_config():
     """Test that valid configs pass validation."""
     print("Testing valid configuration...")
     try:
-        config = load_and_validate_config('configs/jobs/example_static.yaml')
+        config = load_and_validate_config("configs/jobs/example_static.yaml")
         print("Valid config loaded successfully!")
         print(f"   Job: {config.job.name}")
         print(f"   Sink: {config.sink.type}")
@@ -23,9 +23,11 @@ def test_valid_config():
         print(f"Unexpected error: {e}")
         return False
 
+
 def test_invalid_configs():
     """Test various invalid configurations."""
     import tempfile
+
     import yaml
 
     test_cases = [
@@ -35,11 +37,11 @@ def test_invalid_configs():
                 "job": {
                     "name": "Test Job",
                     "adapter": "test",
-                    "start_url": "https://example.com"
+                    "start_url": "https://example.com",
                     # Missing 'id'
                 },
-                "sink": {"type": "csv", "path": "test.csv"}
-            }
+                "sink": {"type": "csv", "path": "test.csv"},
+            },
         },
         {
             "name": "Invalid dedupe mode",
@@ -49,22 +51,17 @@ def test_invalid_configs():
                     "name": "Test Job",
                     "adapter": "test",
                     "start_url": "https://example.com",
-                    "dedupe_mode": "INVALID_MODE"
+                    "dedupe_mode": "INVALID_MODE",
                 },
-                "sink": {"type": "csv", "path": "test.csv"}
-            }
+                "sink": {"type": "csv", "path": "test.csv"},
+            },
         },
         {
             "name": "Invalid URL",
             "config": {
-                "job": {
-                    "id": "test",
-                    "name": "Test Job",
-                    "adapter": "test",
-                    "start_url": "not-a-url"
-                },
-                "sink": {"type": "csv", "path": "test.csv"}
-            }
+                "job": {"id": "test", "name": "Test Job", "adapter": "test", "start_url": "not-a-url"},
+                "sink": {"type": "csv", "path": "test.csv"},
+            },
         },
         {
             "name": "Enrich fields not in schema",
@@ -74,15 +71,12 @@ def test_invalid_configs():
                     "name": "Test Job",
                     "adapter": "test",
                     "start_url": "https://example.com",
-                    "field_schema": ["name"]
+                    "field_schema": ["name"],
                 },
                 "sink": {"type": "csv", "path": "test.csv"},
-                "enrich": {
-                    "enabled": True,
-                    "fields": ["phone", "website"]  # Not in field_schema
-                }
-            }
-        }
+                "enrich": {"enabled": True, "fields": ["phone", "website"]},  # Not in field_schema
+            },
+        },
     ]
 
     print("\nTesting invalid configurations...")
@@ -91,8 +85,8 @@ def test_invalid_configs():
         print(f"\n{i}. {test_case['name']}")
 
         # Create temporary config file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            yaml.dump(test_case['config'], f)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(test_case["config"], f)
             temp_path = f.name
 
         try:
@@ -105,6 +99,7 @@ def test_invalid_configs():
             print(f"Unexpected error: {e}")
         finally:
             os.unlink(temp_path)
+
 
 if __name__ == "__main__":
     print("Configuration Validation Tests\n")

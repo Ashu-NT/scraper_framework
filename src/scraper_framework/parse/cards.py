@@ -1,14 +1,20 @@
 # parse/cards.py
 from __future__ import annotations
+
 from typing import Any, Optional, Protocol
+
 from bs4 import BeautifulSoup
+
 
 class Card(Protocol):
     """Protocol for card elements."""
 
     def raw(self) -> Any: ...
+
     def get_text(self, locator: str) -> Optional[str]: ...
+
     def get_attr(self, locator: str, attr: str) -> Optional[str]: ...
+
     def get_value(self, locator: str) -> Any: ...
 
 

@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import time
-from typing import Protocol, Any
+from typing import Any, Protocol
 
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 class SeleniumStep(Protocol):
     """Single Selenium behavior in the request pipeline."""
+
     name: str
 
     def apply(self, driver: Any, params: dict, log: Any, timeout_s: int) -> None: ...
 
+
 # WINDOW / VIEWPORT
+
 
 class WindowStep:
     name = "window"
@@ -46,6 +49,7 @@ class WindowStep:
         except Exception:
             log.debug("WindowStep failed")
 
+
 # COOKIE CONSENT
 class CookieConsentStep:
     name = "cookies"
@@ -76,9 +80,7 @@ class CookieConsentStep:
 
         def click(by, sel):
             try:
-                el = WebDriverWait(driver, timeout / 2).until(
-                    EC.element_to_be_clickable((by, sel))
-                )
+                el = WebDriverWait(driver, timeout / 2).until(EC.element_to_be_clickable((by, sel)))
                 try:
                     el.click()
                 except Exception:
@@ -88,9 +90,7 @@ class CookieConsentStep:
                 return False
 
         order = (
-            (css_reject, css_accept, xp_reject, xp_accept)
-            if prefer_reject
-            else (css_accept, css_reject, xp_accept, xp_reject)
+            (css_reject, css_accept, xp_reject, xp_accept) if prefer_reject else (css_accept, css_reject, xp_accept, xp_reject)
         )
 
         # main doc
@@ -132,7 +132,10 @@ class CookieConsentStep:
 
         params["_cookies_handled"] = True
 
+
 # WAIT FOR CONTENT
+
+
 class WaitForSelectorStep:
     name = "wait"
 
@@ -146,11 +149,10 @@ class WaitForSelectorStep:
 
         wait_time = float(params.get("wait_time", timeout_s))
         try:
-            WebDriverWait(driver, wait_time).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-            )
+            WebDriverWait(driver, wait_time).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
         except Exception:
             log.debug("Wait selector not found: %s", selector)
+
 
 # CLICK ELEMENTS
 class ClickSelectorsStep:
@@ -166,6 +168,7 @@ class ClickSelectorsStep:
       - click_pause: seconds after clicking (default 0.8)
       - click_use_js: bool (default True)
     """
+
     name = "click_action"
 
     def apply(self, driver, params, log, timeout_s):
@@ -183,9 +186,7 @@ class ClickSelectorsStep:
         use_js = bool(params.get("click_use_js", True))
 
         try:
-            el = WebDriverWait(driver, click_timeout).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, sel))
-            )
+            el = WebDriverWait(driver, click_timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
             try:
                 el.click()
             except Exception:
@@ -199,12 +200,14 @@ class ClickSelectorsStep:
         except Exception:
             log.info("ClickActionStep: click failed or not clickable: %s", sel)
 
+
 # Scroll + reveal step for virtualized pages with "reveal on scroll" patterns.
 class RevealAndClickStep:
     """
     Scrolls until a selector becomes visible, then optionally clicks it ONCE.
     Designed for virtualized pages.
     """
+
     name = "reveal_click"
 
     def apply(self, driver, params, log, timeout_s):
@@ -242,6 +245,7 @@ class RevealAndClickStep:
 
         log.info("RevealAndClick: selector not revealed after %d scrolls", max_scrolls)
 
+
 # SCROLL STEP — ONE SCROLL ACTION PER REQUEST (PAGINATION STYLE)
 class ScrollStep:
     """
@@ -259,6 +263,7 @@ class ScrollStep:
       - scroll_prev_count: previous count (adapter can store it)
       - scroll_wait_time: seconds to wait for count to increase (default 6)
     """
+
     name = "scroll"
 
     def apply(self, driver, params, log, timeout_s):

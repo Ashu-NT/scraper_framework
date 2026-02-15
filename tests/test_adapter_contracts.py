@@ -4,6 +4,7 @@ Ensures all adapters satisfy basic expectations.
 """
 
 import unittest
+
 from src.scraper_framework.adapters.registry import get_registered_adapters
 from src.scraper_framework.adapters.sites import register_all
 
@@ -37,8 +38,7 @@ class TestAdapterContracts(unittest.TestCase):
 
         for adapter in adapters:
             mode = adapter.mode()
-            self.assertIn(mode, valid_modes,
-                         f"Adapter {adapter.key()} has invalid mode: {mode}")
+            self.assertIn(mode, valid_modes, f"Adapter {adapter.key()} has invalid mode: {mode}")
 
     def test_static_adapters_have_card_locator(self):
         """Test that STATIC_HTML adapters have non-empty card locators."""
@@ -48,8 +48,7 @@ class TestAdapterContracts(unittest.TestCase):
             if adapter.mode() == "STATIC_HTML":
                 card_locator = adapter.card_locator()
                 self.assertIsInstance(card_locator, str)
-                self.assertTrue(len(card_locator.strip()) > 0,
-                               f"Adapter {adapter.key()} has empty card_locator")
+                self.assertTrue(len(card_locator.strip()) > 0, f"Adapter {adapter.key()} has empty card_locator")
 
     def test_adapters_have_field_locators_for_known_fields(self):
         """Test that adapters return field locators for their known fields."""
@@ -63,8 +62,9 @@ class TestAdapterContracts(unittest.TestCase):
                 locator = adapter.field_locator(field)
                 # Field locator can be None (field not supported) or a string
                 if locator is not None:
-                    self.assertIsInstance(locator, str,
-                                         f"Adapter {adapter_key} field_locator({field}) returned non-string: {type(locator)}")
+                    self.assertIsInstance(
+                        locator, str, f"Adapter {adapter_key} field_locator({field}) returned non-string: {type(locator)}"
+                    )
 
     def test_adapters_have_extract_source_url_method(self):
         """Test that adapters have the extract_source_url method."""
@@ -72,13 +72,13 @@ class TestAdapterContracts(unittest.TestCase):
 
         for adapter in adapters:
             # Method should exist
-            self.assertTrue(hasattr(adapter, 'extract_source_url'),
-                           f"Adapter {adapter.key()} missing extract_source_url method")
+            self.assertTrue(
+                hasattr(adapter, "extract_source_url"), f"Adapter {adapter.key()} missing extract_source_url method"
+            )
 
             # Method should be callable
-            method = getattr(adapter, 'extract_source_url')
-            self.assertTrue(callable(method),
-                           f"Adapter {adapter.key()} extract_source_url is not callable")
+            method = getattr(adapter, "extract_source_url")
+            self.assertTrue(callable(method), f"Adapter {adapter.key()} extract_source_url is not callable")
 
     def test_adapter_keys_are_reasonable_length(self):
         """Test that adapter keys are reasonable length (not too long)."""
@@ -86,21 +86,19 @@ class TestAdapterContracts(unittest.TestCase):
 
         for adapter in adapters:
             key = adapter.key()
-            self.assertLess(len(key), 50,
-                           f"Adapter key too long: {key} ({len(key)} chars)")
+            self.assertLess(len(key), 50, f"Adapter key too long: {key} ({len(key)} chars)")
 
     def test_adapter_keys_use_valid_characters(self):
         """Test that adapter keys use valid characters (alphanumeric, underscore, dash)."""
         adapters = get_registered_adapters()
         import re
 
-        valid_pattern = re.compile(r'^[a-zA-Z0-9_-]+$')
+        valid_pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
 
         for adapter in adapters:
             key = adapter.key()
-            self.assertRegex(key, valid_pattern,
-                           f"Adapter key contains invalid characters: {key}")
+            self.assertRegex(key, valid_pattern, f"Adapter key contains invalid characters: {key}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from typing import Any, Optional
-from urllib.parse import urljoin
 
 from scraper_framework.adapters.base import SiteAdapter
 from scraper_framework.core.models import Page, RequestSpec
 from scraper_framework.parse.cards import Card
+
 
 class ScrapeStatic(SiteAdapter):
     """Adapter for scraping for testing."""
@@ -33,7 +34,7 @@ class ScrapeStatic(SiteAdapter):
     def extract_source_url(self, card: Card, page: Page) -> Optional[str]:
         """Extract the source URL from a card."""
         href = card.get_attr("p a", "href")
-        return  href if href else None
+        return href if href else None
 
     def extract_field(self, card: Card, field: str, page: Page) -> Any:
         """Extract a field value from a card."""
@@ -50,6 +51,6 @@ class ScrapeStatic(SiteAdapter):
         if i == -1:
             return None
         j = html.find('"', i + len(marker))
-        href = html[i + len(marker): j]
+        href = html[i + len(marker) : j]
         next_url = href
         return RequestSpec(url=next_url, headers=current.headers, params=current.params, method="GET", body=None)

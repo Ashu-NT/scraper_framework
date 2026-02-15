@@ -19,6 +19,7 @@ from scraper_framework.utils.time import utc_now_iso
 @dataclass
 class ProcessingRunResult:
     """Output of a processing pipeline run."""
+
     records: List[Record]
     schema_version: str
     records_quarantined: int = 0
@@ -66,14 +67,12 @@ class ProcessingRunner:
 
                 if stage.stage_type != plugin.stage_type:
                     raise ValueError(
-                        f"Stage '{stage_name}' type mismatch: "
-                        f"config={stage.stage_type} plugin={plugin.stage_type}"
+                        f"Stage '{stage_name}' type mismatch: " f"config={stage.stage_type} plugin={plugin.stage_type}"
                     )
 
                 if plugin.input_schema_version != schema_version:
                     raise ValueError(
-                        f"Stage '{stage_name}' expected schema {plugin.input_schema_version}, "
-                        f"got {schema_version}"
+                        f"Stage '{stage_name}' expected schema {plugin.input_schema_version}, " f"got {schema_version}"
                     )
 
                 if not plugin.idempotent:
@@ -92,9 +91,7 @@ class ProcessingRunner:
                 else:
                     result = plugin.process_batch(current_records, stage.config, ctx)
                     if not isinstance(result, ProcessResult):
-                        raise ValueError(
-                            f"Stage '{stage_name}' must return ProcessResult for {plugin.stage_type} plugins"
-                        )
+                        raise ValueError(f"Stage '{stage_name}' must return ProcessResult for {plugin.stage_type} plugins")
                     current_records = list(result.records)
                     if result.artifacts:
                         artifacts[stage_name] = result.artifacts
@@ -120,9 +117,7 @@ class ProcessingRunner:
                     quarantined.extend(input_snapshot)
                     current_records = []
                 else:
-                    raise ValueError(
-                        f"Invalid on_error policy '{on_error}' for stage '{stage_name}'"
-                    ) from exc
+                    raise ValueError(f"Invalid on_error policy '{on_error}' for stage '{stage_name}'") from exc
 
             metrics.records_out = len(current_records)
             metrics.dropped = max(metrics.records_in - metrics.records_out, 0)
@@ -163,9 +158,7 @@ class ProcessingRunner:
                 if on_error == "quarantine":
                     quarantined.append(record)
                     continue
-                raise ValueError(
-                    f"Invalid on_error policy '{on_error}' for stage '{ctx.stage_name}'"
-                ) from exc
+                raise ValueError(f"Invalid on_error policy '{on_error}' for stage '{ctx.stage_name}'") from exc
 
             if next_record is None:
                 metrics.dropped += 1

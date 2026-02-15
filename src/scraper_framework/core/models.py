@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Set
@@ -6,6 +7,7 @@ from typing import Any, Dict, List, Set
 
 class DedupeMode(str, Enum):
     """Enumeration for deduplication modes."""
+
     BY_SOURCE_URL = "BY_SOURCE_URL"
     BY_HASH = "BY_HASH"
 
@@ -13,6 +15,7 @@ class DedupeMode(str, Enum):
 @dataclass(frozen=True)
 class RequestSpec:
     """Specification for an HTTP request."""
+
     url: str
     method: str = "GET"
     headers: Dict[str, str] = field(default_factory=dict)
@@ -23,6 +26,7 @@ class RequestSpec:
 @dataclass(frozen=True)
 class EnrichConfig:
     """Configuration for enrichment features."""
+
     enabled: bool = False
     fields: Set[str] = field(default_factory=set)
 
@@ -30,6 +34,7 @@ class EnrichConfig:
 @dataclass(frozen=True)
 class ProcessingStage:
     """Configuration for a single processing stage."""
+
     plugin: str
     stage_type: str = "record"  # record | batch | analytics
     on_error: str = "fail"  # fail | skip | quarantine
@@ -39,6 +44,7 @@ class ProcessingStage:
 @dataclass(frozen=True)
 class ProcessingConfig:
     """Configuration for post-scrape processing pipeline."""
+
     enabled: bool = False
     schema_version: str = "1.0"
     stages: List[ProcessingStage] = field(default_factory=list)
@@ -47,6 +53,7 @@ class ProcessingConfig:
 @dataclass(frozen=True)
 class ScrapeJob:
     """Configuration for a scraping job."""
+
     id: str
     name: str
     start: RequestSpec
@@ -62,10 +69,10 @@ class ScrapeJob:
     sink_config: Dict[str, Any] = field(default_factory=dict)
 
 
-
 @dataclass
 class Page:
     """Represents a fetched web page."""
+
     url: str
     status_code: int
     content_type: str
@@ -75,6 +82,7 @@ class Page:
 @dataclass
 class Record:
     """A scraped data record."""
+
     id: str
     source_url: str
     scraped_at_utc: str
@@ -84,6 +92,7 @@ class Record:
 @dataclass(frozen=True)
 class ValidationResult:
     """Result of record validation."""
+
     ok: bool
     reason: str = ""
 
@@ -91,6 +100,7 @@ class ValidationResult:
 @dataclass
 class ScrapeReport:
     """Summary report of a scraping job."""
+
     pages_fetched: int = 0
     cards_found: int = 0
     records_emitted: int = 0

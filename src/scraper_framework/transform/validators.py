@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 from typing import Protocol, Set
+
 from scraper_framework.core.models import Record, ValidationResult
+
 
 class Validator(Protocol):
     """Protocol for record validators."""

@@ -8,6 +8,7 @@ from scraper_framework.core.models import Page, RequestSpec
 from scraper_framework.parse.cards import Card
 from scraper_framework.utils.logging import get_logger
 
+
 class DynamicTestAdapter(SiteAdapter):
     """
     Example adapter for sites that render content dynamically via JavaScript.
@@ -15,6 +16,7 @@ class DynamicTestAdapter(SiteAdapter):
 
     This adapter demonstrates mode='DYNAMIC' with wait_selector and wait_time.
     """
+
     def __init__(self):
         self.log = get_logger("scraper_framework.adapters.dynamic_test")
 
@@ -43,9 +45,9 @@ class DynamicTestAdapter(SiteAdapter):
 
     def extract_source_url(self, card: Card, page: Page) -> Optional[str]:
         """Extract the source URL from a card."""
-       # Because the card element IS the <a>, read href from the element itself
-        raw = card.raw()            # BeautifulSoup element
-        href = raw.get("href")      # <-- key change
+        # Because the card element IS the <a>, read href from the element itself
+        raw = card.raw()  # BeautifulSoup element
+        href = raw.get("href")  # <-- key change
         return urljoin(page.url, href) if href else None
 
     def extract_field(self, card: Card, field: str, page: Page) -> Any:
@@ -138,19 +140,19 @@ class DynamicTestAdapter(SiteAdapter):
         )
 
         # Build next RequestSpec: ONE scroll action
-        params.update({
-            "scroll_action": "down",
-            "scroll_cursor": cursor + 1,
-
-            # store accumulated progress
-            "scroll_stall_count": stall,
-            "scroll_unique_total": after_total,
-            "scroll_seen_hrefs": list(seen_total),
-
-            # optional: ScrollStep can wait for DOM to show more items (best-effort)
-            "scroll_wait_increase_selector": self.card_locator(),
-            "scroll_prev_count": unique_in_dom,  # DOM count (not the progress metric)
-        })
+        params.update(
+            {
+                "scroll_action": "down",
+                "scroll_cursor": cursor + 1,
+                # store accumulated progress
+                "scroll_stall_count": stall,
+                "scroll_unique_total": after_total,
+                "scroll_seen_hrefs": list(seen_total),
+                # optional: ScrollStep can wait for DOM to show more items (best-effort)
+                "scroll_wait_increase_selector": self.card_locator(),
+                "scroll_prev_count": unique_in_dom,  # DOM count (not the progress metric)
+            }
+        )
 
         return RequestSpec(
             url=current.url,
@@ -159,5 +161,3 @@ class DynamicTestAdapter(SiteAdapter):
             method="GET",
             body=None,
         )
-
-

@@ -1,10 +1,8 @@
 import unittest
 
+from src.scraper_framework.adapters.sites.directory_generic import GenericDirectoryAdapter
 from src.scraper_framework.core.models import Page, RequestSpec
 from src.scraper_framework.parse.parsers import HtmlPageParser
-from src.scraper_framework.adapters.sites.directory_generic import GenericDirectoryAdapter
-from src.scraper_framework.parse.cards import HtmlCard
-
 
 HTML = """
 <html>

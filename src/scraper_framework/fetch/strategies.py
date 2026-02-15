@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 from typing import Protocol
+
 from scraper_framework.core.models import Page, RequestSpec
 from scraper_framework.http.client import HttpClient
+
 
 class FetchStrategy(Protocol):
     """Protocol for fetching web pages."""

@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 from bs4 import BeautifulSoup
 
-from scraper_framework.enrich.base import Enricher
-from scraper_framework.core.models import Record, RequestSpec
-from scraper_framework.fetch.strategies import FetchStrategy
 from scraper_framework.adapters.base import SiteAdapter
+from scraper_framework.core.models import Record, RequestSpec
+from scraper_framework.enrich.base import Enricher
+from scraper_framework.fetch.strategies import FetchStrategy
 from scraper_framework.utils.logging import get_logger
 
 

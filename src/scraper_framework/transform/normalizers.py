@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 import re
 from typing import Any, Optional, Protocol
+
 from scraper_framework.core.models import Record
+
 
 class Normalizer(Protocol):
     """Protocol for record normalizers."""
@@ -48,7 +51,12 @@ class DefaultNormalizer:
         s = str(raw).strip()
 
         word_map = {
-            "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "zero": 0,
+            "one": 1,
+            "two": 2,
+            "three": 3,
+            "four": 4,
+            "five": 5,
         }
         lw = s.lower()
         if lw in word_map:

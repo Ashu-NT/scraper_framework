@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from typing import Optional
-from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
 
 
 def find_next_url(html: str, base_url: str) -> Optional[str]:

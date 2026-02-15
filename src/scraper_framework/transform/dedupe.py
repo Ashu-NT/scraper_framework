@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Dict, List, Protocol
+
 from scraper_framework.core.models import Record
 from scraper_framework.utils.hashing import normalize_text, stable_hash
 from scraper_framework.utils.logging import get_logger
@@ -9,6 +11,7 @@ class DedupeStrategy(Protocol):
     """Protocol for deduplication strategies."""
 
     def key(self, record: Record) -> str: ...
+
     def dedupe(self, records: List[Record]) -> List[Record]: ...
 
 

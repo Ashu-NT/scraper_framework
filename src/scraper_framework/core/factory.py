@@ -12,15 +12,14 @@ from scraper_framework.fetch.strategies import (
     JsonApiFetchStrategy,
     StaticHtmlFetchStrategy,
 )
-
 from scraper_framework.http.client import RequestsHttpClient
 from scraper_framework.parse.parsers import HtmlPageParser, JsonPageParser, PageParser
-from scraper_framework.sinks.csv_sink import CsvSink
-from scraper_framework.sinks.gsheet_sink import GoogleSheetsSink
-from scraper_framework.sinks.base import Sink
 from scraper_framework.process.registry import create_default_registry
 from scraper_framework.process.runner import ProcessingRunner
-from scraper_framework.transform.dedupe import HashDedupeStrategy, UrlDedupeStrategy, DedupeStrategy
+from scraper_framework.sinks.base import Sink
+from scraper_framework.sinks.csv_sink import CsvSink
+from scraper_framework.sinks.gsheet_sink import GoogleSheetsSink
+from scraper_framework.transform.dedupe import DedupeStrategy, HashDedupeStrategy, UrlDedupeStrategy
 from scraper_framework.transform.normalizers import DefaultNormalizer, Normalizer
 from scraper_framework.transform.validators import RequiredFieldsValidator, Validator
 
@@ -140,11 +139,12 @@ class ComponentFactory:
         sink_type = str(job.sink_config.get("type", "csv")).lower()
         if sink_type in ("google_sheets", "gsheet", "sheets"):
             return GoogleSheetsSink()
-        
+
         if sink_type == str("jsonl").lower():
             from scraper_framework.sinks.jsonl_sink import JsonlSink
+
             return JsonlSink()
-        
+
         return CsvSink()
 
     def _enricher(self, job: ScrapeJob, fetcher: FetchStrategy) -> Optional[DetailPageEnricher]:

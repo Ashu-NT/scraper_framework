@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+
 import gspread
 from google.oauth2.service_account import Credentials
 
 from scraper_framework.core.models import Record, ScrapeJob
 from scraper_framework.sinks.base import Sink
-
 
 _SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",

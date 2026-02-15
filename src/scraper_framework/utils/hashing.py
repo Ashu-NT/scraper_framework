@@ -1,11 +1,13 @@
 import hashlib
-from typing import Any
-import unicodedata
 import re
+import unicodedata
+from typing import Any
+
 
 def stable_hash(text: str) -> str:
     """Generate a stable hash from text."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
 
 def normalize_text(
     value: Any,

@@ -3,11 +3,11 @@ Integration tests for the scraping engine configuration.
 Tests configuration validation and structure.
 """
 
-import unittest
-import tempfile
 import os
+import tempfile
+import unittest
 
-from src.scraper_framework.config_models import ScraperConfig, JobConfig
+from src.scraper_framework.config_models import JobConfig, ScraperConfig
 
 
 class TestEngineIntegration(unittest.TestCase):
@@ -22,6 +22,7 @@ class TestEngineIntegration(unittest.TestCase):
         """Clean up test fixtures."""
         # Remove temporary directory
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_full_scraping_pipeline_with_csv_output(self):
@@ -33,13 +34,12 @@ class TestEngineIntegration(unittest.TestCase):
             adapter="books_toscrape",
             start_url="https://books.toscrape.com/",
             max_pages=1,
-            field_schema=["name", "price", "rating"]
+            field_schema=["name", "price", "rating"],
         )
 
         # Create scraping config with required sink
         scraping_config = ScraperConfig(
-            job=job_config,
-            sink={"type": "csv", "path": os.path.join(self.temp_dir, "output.csv")}
+            job=job_config, sink={"type": "csv", "path": os.path.join(self.temp_dir, "output.csv")}
         )
 
         # Verify the config validates correctly
@@ -55,13 +55,12 @@ class TestEngineIntegration(unittest.TestCase):
             name="test_invalid_adapter",
             adapter="non_existent_adapter",
             start_url="https://example.com/",
-            field_schema=["name"]
+            field_schema=["name"],
         )
 
         # Config creation should succeed, adapter validation happens at runtime
         scraping_config = ScraperConfig(
-            job=job_config,
-            sink={"type": "csv", "path": os.path.join(self.temp_dir, "invalid_output.csv")}
+            job=job_config, sink={"type": "csv", "path": os.path.join(self.temp_dir, "invalid_output.csv")}
         )
 
         self.assertEqual(scraping_config.job.adapter, "non_existent_adapter")
@@ -73,14 +72,11 @@ class TestEngineIntegration(unittest.TestCase):
             name="test_csv_sink",
             adapter="books_toscrape",
             start_url="https://books.toscrape.com/",
-            field_schema=["name"]
+            field_schema=["name"],
         )
 
         # Valid CSV sink should work
-        scraping_config = ScraperConfig(
-            job=job_config,
-            sink={"type": "csv", "path": "/tmp/output.csv"}
-        )
+        scraping_config = ScraperConfig(job=job_config, sink={"type": "csv", "path": "/tmp/output.csv"})
 
         self.assertIsNotNone(scraping_config.sink)
 
@@ -91,17 +87,12 @@ class TestEngineIntegration(unittest.TestCase):
             name="test_sheets_sink",
             adapter="books_toscrape",
             start_url="https://books.toscrape.com/",
-            field_schema=["name"]
+            field_schema=["name"],
         )
 
         # Valid Google Sheets sink should work
         scraping_config = ScraperConfig(
-            job=job_config,
-            sink={
-                "type": "google_sheets",
-                "sheet_id": "test_sheet_123",
-                "tab": "Sheet1"
-            }
+            job=job_config, sink={"type": "google_sheets", "sheet_id": "test_sheet_123", "tab": "Sheet1"}
         )
 
         self.assertIsNotNone(scraping_config.sink)
@@ -110,25 +101,16 @@ class TestEngineIntegration(unittest.TestCase):
         """Test that JobConfig validates start_url is a proper URL."""
         # Valid URL should work
         valid_job = JobConfig(
-            id="test_url",
-            name="test_job",
-            adapter="test",
-            start_url="https://example.com/",
-            field_schema=[]
+            id="test_url", name="test_job", adapter="test", start_url="https://example.com/", field_schema=[]
         )
         self.assertEqual(valid_job.start_url, "https://example.com/")
 
         # Invalid URL should raise ValidationError
         from pydantic import ValidationError
+
         with self.assertRaises(ValidationError):
-            JobConfig(
-                id="test_invalid_url",
-                name="test_job",
-                adapter="test",
-                start_url="not_a_url",
-                field_schema=[]
-            )
+            JobConfig(id="test_invalid_url", name="test_job", adapter="test", start_url="not_a_url", field_schema=[])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

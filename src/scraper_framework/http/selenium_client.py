@@ -13,15 +13,15 @@ except Exception:
 
 from scraper_framework.core.models import RequestSpec
 from scraper_framework.http.response import HttpResponse
-from scraper_framework.utils.logging import get_logger
 from scraper_framework.http.selenium_steps import (
-    RevealAndClickStep,
-    WindowStep,
-    CookieConsentStep,
-    WaitForSelectorStep,
     ClickSelectorsStep,
+    CookieConsentStep,
+    RevealAndClickStep,
     ScrollStep,
+    WaitForSelectorStep,
+    WindowStep,
 )
+from scraper_framework.utils.logging import get_logger
 
 
 class SeleniumHttpClient:
@@ -63,11 +63,10 @@ class SeleniumHttpClient:
         self.steps = [
             WindowStep(),
             CookieConsentStep(),
-             # one action step per iteration
+            # one action step per iteration
             ClickSelectorsStep(),
             ScrollStep(),
             RevealAndClickStep(),  # custom step to handle "reveal on scroll" + click patterns
-            
             # wait after action so DOM can update
             WaitForSelectorStep(),
         ]

@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from typing import Any, Optional
 from urllib.parse import urljoin
 
 from scraper_framework.adapters.base import SiteAdapter
 from scraper_framework.core.models import Page, RequestSpec
 from scraper_framework.parse.cards import Card
+
 
 class BooksToScrapeAdapter(SiteAdapter):
     """Adapter for scraping books.toscrape.com."""
@@ -64,6 +66,6 @@ class BooksToScrapeAdapter(SiteAdapter):
         if i == -1:
             return None
         j = html.find('"', i + len(marker))
-        href = html[i + len(marker): j]
+        href = html[i + len(marker) : j]
         next_url = urljoin(page.url, href)
         return RequestSpec(url=next_url, headers=current.headers, params=current.params, method="GET", body=None)

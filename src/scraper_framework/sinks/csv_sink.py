@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 import csv
 import os
 from pathlib import Path
 from typing import List
+
 from scraper_framework.core.models import Record, ScrapeJob
 from scraper_framework.sinks.base import Sink
 from scraper_framework.utils.logging import get_logger
+
 
 class CsvSink(Sink):
     """Sink that writes records to a CSV file."""

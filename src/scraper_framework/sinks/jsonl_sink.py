@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
 from typing import List
+
 from scraper_framework.core.models import Record, ScrapeJob
 from scraper_framework.sinks.base import Sink
 from scraper_framework.utils.logging import get_logger
+
 
 class JsonlSink(Sink):
     """Sink that writes records to a JSONL (JSON Lines) file."""

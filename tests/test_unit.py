@@ -5,11 +5,12 @@ Fast, focused tests for individual components.
 
 import unittest
 from unittest.mock import Mock
-from src.scraper_framework.core.models import Record
-from src.scraper_framework.transform.validators import RequiredFieldsValidator
-from src.scraper_framework.transform.dedupe import UrlDedupeStrategy, HashDedupeStrategy
+
+from src.scraper_framework.adapters.registry import get, get_registered_adapters, register
 from src.scraper_framework.config_models import ScraperConfig
-from src.scraper_framework.adapters.registry import register, get, get_registered_adapters
+from src.scraper_framework.core.models import Record
+from src.scraper_framework.transform.dedupe import HashDedupeStrategy, UrlDedupeStrategy
+from src.scraper_framework.transform.validators import RequiredFieldsValidator
 
 
 class TestValidators(unittest.TestCase):
@@ -24,7 +25,7 @@ class TestValidators(unittest.TestCase):
             id="1",
             source_url="https://example.com/1",
             scraped_at_utc="2024-01-01T00:00:00Z",
-            fields={"name": "Test", "price": "$10.99"}
+            fields={"name": "Test", "price": "$10.99"},
         )
         required_fields = {"name", "source_url"}
         result = self.validator.validate(record, required_fields)
@@ -36,7 +37,7 @@ class TestValidators(unittest.TestCase):
             id="1",
             source_url="https://example.com/1",
             scraped_at_utc="2024-01-01T00:00:00Z",
-            fields={"name": "Test"}  # missing price
+            fields={"name": "Test"},  # missing price
         )
         required_fields = {"name", "price"}
         result = self.validator.validate(record, required_fields)
@@ -49,7 +50,7 @@ class TestValidators(unittest.TestCase):
             id="1",
             source_url="https://example.com/1",
             scraped_at_utc="2024-01-01T00:00:00Z",
-            fields={"name": "", "price": "$10.99"}
+            fields={"name": "", "price": "$10.99"},
         )
         required_fields = {"name", "price"}
         result = self.validator.validate(record, required_fields)
@@ -100,7 +101,9 @@ class TestDedupeStrategies(unittest.TestCase):
     def test_dedupe_by_hash_duplicate(self):
         """Test hash deduplication with duplicate content."""
         record1 = Record(id="1", source_url="https://example.com/1", scraped_at_utc="t", fields={"name": "A", "price": "10"})
-        record2 = Record(id="2", source_url="https://example.com/1", scraped_at_utc="t", fields={"name": "A", "price": "10"})  # duplicate content
+        record2 = Record(
+            id="2", source_url="https://example.com/1", scraped_at_utc="t", fields={"name": "A", "price": "10"}
+        )  # duplicate content
 
         result = self.hash_deduper.dedupe([record1, record2])
         self.assertEqual(len(result), 1)
@@ -114,16 +117,8 @@ class TestConfigValidation(unittest.TestCase):
     def test_valid_csv_config(self):
         """Test valid CSV configuration."""
         config_data = {
-            "job": {
-                "id": "test",
-                "name": "Test Job",
-                "adapter": "test_adapter",
-                "start_url": "https://example.com"
-            },
-            "sink": {
-                "type": "csv",
-                "path": "test.csv"
-            }
+            "job": {"id": "test", "name": "Test Job", "adapter": "test_adapter", "start_url": "https://example.com"},
+            "sink": {"type": "csv", "path": "test.csv"},
         }
         config = ScraperConfig(**config_data)
         self.assertEqual(config.sink.type, "csv")
@@ -132,17 +127,8 @@ class TestConfigValidation(unittest.TestCase):
     def test_valid_google_sheets_config(self):
         """Test valid Google Sheets configuration."""
         config_data = {
-            "job": {
-                "id": "test",
-                "name": "Test Job",
-                "adapter": "test_adapter",
-                "start_url": "https://example.com"
-            },
-            "sink": {
-                "type": "google_sheets",
-                "sheet_id": "123",
-                "tab": "Sheet1"
-            }
+            "job": {"id": "test", "name": "Test Job", "adapter": "test_adapter", "start_url": "https://example.com"},
+            "sink": {"type": "google_sheets", "sheet_id": "123", "tab": "Sheet1"},
         }
         config = ScraperConfig(**config_data)
         self.assertEqual(config.sink.type, "google_sheets")
@@ -151,16 +137,8 @@ class TestConfigValidation(unittest.TestCase):
     def test_invalid_sink_type(self):
         """Test invalid sink type."""
         config_data = {
-            "job": {
-                "id": "test",
-                "name": "Test Job",
-                "adapter": "test_adapter",
-                "start_url": "https://example.com"
-            },
-            "sink": {
-                "type": "invalid_type",
-                "path": "test.csv"
-            }
+            "job": {"id": "test", "name": "Test Job", "adapter": "test_adapter", "start_url": "https://example.com"},
+            "sink": {"type": "invalid_type", "path": "test.csv"},
         }
         with self.assertRaises(ValueError) as cm:
             ScraperConfig(**config_data)
@@ -174,16 +152,10 @@ class TestConfigValidation(unittest.TestCase):
                 "name": "Test Job",
                 "adapter": "test_adapter",
                 "start_url": "https://example.com",
-                "field_schema": ["name", "price"]
+                "field_schema": ["name", "price"],
             },
-            "sink": {
-                "type": "csv",
-                "path": "test.csv"
-            },
-            "enrich": {
-                "enabled": True,
-                "fields": ["phone", "website"]  # Not in field_schema
-            }
+            "sink": {"type": "csv", "path": "test.csv"},
+            "enrich": {"enabled": True, "fields": ["phone", "website"]},  # Not in field_schema
         }
         with self.assertRaises(ValueError) as cm:
             ScraperConfig(**config_data)
@@ -196,6 +168,7 @@ class TestAdapterRegistry(unittest.TestCase):
     def setUp(self):
         # Clear any existing registrations for testing
         from src.scraper_framework.adapters import registry
+
         registry._ADAPTERS.clear()
 
     def test_register_and_get_adapter(self):
@@ -242,5 +215,5 @@ class TestAdapterRegistry(unittest.TestCase):
         self.assertIn(mock_adapter2, adapters)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,7 @@ def _as_bool(value: Any) -> bool:
 
 class PassThroughProcessor:
     """No-op processor useful for smoke tests and baseline stages."""
+
     name = "pass_through"
     stage_type = "batch"
     input_schema_version = "1.0"
@@ -73,6 +74,7 @@ class DropIfFieldEmptyProcessor:
     Config:
       - field (str, required)
     """
+
     name = "drop_if_field_empty"
     stage_type = "record"
     input_schema_version = "1.0"
@@ -108,6 +110,7 @@ class FieldCoverageAnalyticsProcessor:
     Config:
       - fields (list[str], optional): explicit field names to measure.
     """
+
     name = "field_coverage_analytics"
     stage_type = "analytics"
     input_schema_version = "1.0"
@@ -160,6 +163,7 @@ class ScoreLeadFitProcessor:
       - output_field (str, optional): destination field (default: "lead_score")
       - round_digits (int, optional): score rounding precision (default: 4)
     """
+
     name = "score_lead_fit"
     stage_type = "record"
     input_schema_version = "1.0"
@@ -210,6 +214,7 @@ class TopNPerSegmentProcessor:
       - top_n (int, optional, default: 1)
       - include_missing_segment (bool, optional, default: False)
     """
+
     name = "top_n_per_segment"
     stage_type = "batch"
     input_schema_version = "1.0"
@@ -281,6 +286,7 @@ class NormalizeUpworkBudgetProcessor:
       - output_prefix (str, optional, default: "budget")
       - hourly_to_usd_hours (int, optional, default: 160)
     """
+
     name = "normalize_upwork_budget"
     stage_type = "record"
     input_schema_version = "1.0"
@@ -355,6 +361,7 @@ class NormalizeUpworkAgeProcessor:
       - output_bucket_field (str, optional, default: "post_age_bucket")
       - now_utc (str, optional): ISO timestamp for deterministic parsing
     """
+
     name = "normalize_upwork_age"
     stage_type = "record"
     input_schema_version = "1.0"
@@ -453,6 +460,7 @@ class ClientQualityScoreProcessor:
       - output_tier_field (str, optional, default: "client_quality_tier")
       - round_digits (int, optional, default: 2)
     """
+
     name = "client_quality_score"
     stage_type = "record"
     input_schema_version = "1.0"

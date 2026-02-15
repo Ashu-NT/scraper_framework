@@ -1,19 +1,21 @@
 from __future__ import annotations
+
 from typing import Any, Dict, List, Optional, Set
 
+from scraper_framework.adapters.base import SiteAdapter
 from scraper_framework.core.models import Page, Record, RequestSpec, ScrapeJob, ScrapeReport
 from scraper_framework.fetch.strategies import FetchStrategy
+from scraper_framework.http.policies import RateLimiter
 from scraper_framework.parse.parsers import PageParser
-from scraper_framework.adapters.base import SiteAdapter
+from scraper_framework.process.runner import ProcessingRunner
+from scraper_framework.sinks.base import Sink
+from scraper_framework.transform.dedupe import DedupeStrategy
 from scraper_framework.transform.normalizers import Normalizer
 from scraper_framework.transform.validators import Validator
-from scraper_framework.transform.dedupe import DedupeStrategy
-from scraper_framework.sinks.base import Sink
-from scraper_framework.process.runner import ProcessingRunner
-from scraper_framework.utils.time import utc_now_iso
 from scraper_framework.utils.hashing import normalize_text, stable_hash
-from scraper_framework.http.policies import RateLimiter
 from scraper_framework.utils.logging import get_logger
+from scraper_framework.utils.time import utc_now_iso
+
 
 class ScrapeEngine:
     """
@@ -303,7 +305,7 @@ class ScrapeEngine:
             scraped_at_utc=utc_now_iso(),
             fields=fields,
         )
-    
+
     def _cleanup(self) -> None:
         """
         Clean up resources used by the fetcher (e.g., Selenium driver for DYNAMIC mode).
@@ -311,7 +313,7 @@ class ScrapeEngine:
         """
         try:
             # Check if the fetcher's client has a close method (for SeleniumHttpClient)
-            if hasattr(self.fetcher, 'client') and hasattr(self.fetcher.client, 'close'):
+            if hasattr(self.fetcher, "client") and hasattr(self.fetcher.client, "close"):
                 self.fetcher.client.close()
                 self.log.info("Closed HTTP client resources (e.g., Selenium driver)")
         except Exception as e:

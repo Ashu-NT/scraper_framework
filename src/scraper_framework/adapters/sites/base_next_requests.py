@@ -1,10 +1,9 @@
-
-
 from typing import Optional
+
 from scraper_framework.core.models import Page, RequestSpec
 
-
 # Click-based pagination adapter example selenium
+
 
 def next_request(self, page: Page, current: RequestSpec) -> Optional[RequestSpec]:
     params = dict(current.params or {})
@@ -39,24 +38,20 @@ def next_request(self, page: Page, current: RequestSpec) -> Optional[RequestSpec
         stall = 0
 
     if stall >= stall_limit:
-        self.log.info(
-            "Click stop: cursor=%d unique_total=%d stall=%d/%d",
-            cursor, after, stall, stall_limit
-        )
+        self.log.info("Click stop: cursor=%d unique_total=%d stall=%d/%d", cursor, after, stall, stall_limit)
         return None
 
-    self.log.info(
-        "Click progress: cursor=%d unique_total=%d (+%d) stall=%d/%d",
-        cursor, after, gained, stall, stall_limit
-    )
+    self.log.info("Click progress: cursor=%d unique_total=%d (+%d) stall=%d/%d", cursor, after, gained, stall, stall_limit)
 
-    params.update({
-        "click_action": "once",
-        "click_selector": params.get("click_selector") or "button.load-more",
-        "click_cursor": cursor + 1,
-        "click_stall_count": stall,
-        "click_seen_hrefs": list(seen_total),
-    })
+    params.update(
+        {
+            "click_action": "once",
+            "click_selector": params.get("click_selector") or "button.load-more",
+            "click_cursor": cursor + 1,
+            "click_stall_count": stall,
+            "click_seen_hrefs": list(seen_total),
+        }
+    )
 
     return RequestSpec(
         url=current.url,

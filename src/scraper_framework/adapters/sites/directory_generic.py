@@ -41,12 +41,13 @@ class GenericDirectoryAdapter(SiteAdapter):
             "website": "a.website, a[href^='http']",
             "rating": ".rating, .stars, [data-rating]",
             "reviews": ".reviews, [data-reviews]",
-            "detail:availability": ".availability", #Fields prefixed with detail: are only used during enrichment
+            "detail:availability": ".availability",  # Fields prefixed with detail: are only used during enrichment
         }
         return mapping.get(field)
 
     def extract_source_url(self, card: Card, page: Page) -> Optional[str]:
         """Extract the source URL from a card."""
+
         # best: link to the detail page
         href = card.get_attr("a[href]", "href")
         if href:
@@ -56,6 +57,7 @@ class GenericDirectoryAdapter(SiteAdapter):
     def extract_field(self, card: Card, field: str, page: Page) -> Any:
         """Extract a field value from a card."""
         if field == "website":
+
             # Prefer explicit website link, then any absolute http link.
             href = card.get_attr("a.website[href]", "href") or card.get_attr("a[href^='http']", "href")
             return href
@@ -67,6 +69,7 @@ class GenericDirectoryAdapter(SiteAdapter):
             return card.get_text(self.field_locator(field) or "")
 
         if field == "rating":
+
             # rating can be in text or data attribute
             data_rating = card.get_attr("[data-rating]", "data-rating")
             if data_rating:

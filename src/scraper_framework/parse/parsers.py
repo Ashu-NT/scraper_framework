@@ -1,16 +1,20 @@
 # parse/parsers.py
 from __future__ import annotations
+
 from typing import List, Optional, Protocol
+
 from bs4 import BeautifulSoup
 
+from scraper_framework.adapters.base import SiteAdapter
 from scraper_framework.core.models import Page, RequestSpec
 from scraper_framework.parse.cards import Card, HtmlCard, JsonCard
-from scraper_framework.adapters.base import SiteAdapter
+
 
 class PageParser(Protocol):
     """Protocol for parsing pages into cards."""
 
     def parse_cards(self, page: Page, adapter: SiteAdapter) -> List[Card]: ...
+
     def next_request(self, page: Page, adapter: SiteAdapter, current: RequestSpec) -> Optional[RequestSpec]: ...
 
 

@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import sys
+
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from pydantic import ValidationError
 
 from scraper_framework.adapters.registry import get as get_adapter
 from scraper_framework.adapters.sites import register_all
+from scraper_framework.config_models import config_to_job_objects, load_and_validate_config
 from scraper_framework.core.factory import ComponentFactory
 from scraper_framework.core.models import ScrapeJob
-from scraper_framework.config_models import load_and_validate_config, config_to_job_objects
 from scraper_framework.utils.logging import setup_logging
 
 DEFAULT_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ScraperFramework/0.1)"}
+
 
 def load_job(path: str) -> tuple[ScrapeJob, str, dict]:
     """
@@ -53,10 +55,8 @@ def run_schedule(job: ScrapeJob, adapter_key: str, schedule_cfg: dict, job_path:
         print("Error: No schedule configuration found in job file")
         raise SystemExit(1)
 
-    # Set up scheduler
     scheduler = BlockingScheduler()
 
-    # Add job to scheduler
     interval_hours = schedule_cfg.get("interval_hours", 24)
     print(f"Scheduling job every {interval_hours} hours")
     trigger = IntervalTrigger(hours=interval_hours)
@@ -66,7 +66,7 @@ def run_schedule(job: ScrapeJob, adapter_key: str, schedule_cfg: dict, job_path:
         trigger=trigger,
         args=[job, adapter_key],
         id=f"scrape_{job.id}",
-        name=f"Scheduled scrape: {job.name}"
+        name=f"Scheduled scrape: {job.name}",
     )
 
     print(f"Starting scheduled scraper for job '{job.name}' (every {interval_hours} hours)")
@@ -86,17 +86,15 @@ def main() -> None:
     print(f"Loading job from {job_path}")
 
     try:
-        # Load and validate job configuration
         job, adapter_key, schedule_cfg = load_job(job_path)
     except ValidationError as e:
-        print(f"❌ Configuration validation failed:")
+        print("Configuration validation failed:")
         print(str(e))
         raise SystemExit(1)
     except (FileNotFoundError, ValueError) as e:
-        print(f"❌ Configuration loading failed: {e}")
+        print(f"Configuration loading failed: {e}")
         raise SystemExit(1)
 
-    # Determine mode based on schedule config presence
     if schedule_cfg:
         print("Running in scheduled mode")
         run_schedule(job, adapter_key, schedule_cfg, job_path)
