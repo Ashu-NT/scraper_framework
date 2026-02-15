@@ -1,9 +1,6 @@
 services:
   scraper:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: scraper-framework-client:latest
+    image: ${SCRAPER_IMAGE:-ghcr.io/your-org/scraper-framework-client:1.0.0}
     working_dir: /app
     volumes:
       - ./configs:/app/configs

@@ -99,7 +99,7 @@ Also see:
 
 - `configs/jobs/run_processing_example.yaml`
 - `configs/jobs/client_template.yaml`
-- `README_CLIENT.md` (Docker one-command client setup)
+- `README_CLIENT.md` (prebuilt-image Docker runner for clients)
 
 ---
 
