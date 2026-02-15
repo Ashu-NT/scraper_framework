@@ -98,6 +98,8 @@ scrape configs/jobs/run_csv.yaml
 Also see:
 
 - `configs/jobs/run_processing_example.yaml`
+- `configs/jobs/client_template.yaml`
+- `README_CLIENT.md` (Docker one-command client setup)
 
 ---
 

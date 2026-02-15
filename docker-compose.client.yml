@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scraper-framework-client:latest
+    working_dir: /app
+    volumes:
+      - ./configs:/app/configs
+      - ./output:/app/output
+      - ./secrets:/app/secrets:ro
+    command: ["configs/jobs/client_template.yaml"]

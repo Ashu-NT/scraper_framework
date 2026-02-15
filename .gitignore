@@ -46,6 +46,8 @@ logs/
 # =========================
 output*.csv
 output*.json
+output*.jsonl
+output/
 *.xlsx
 
 # =========================
@@ -55,6 +57,9 @@ output*.json
 .env.*
 service_account.json
 credentials.json
+secrets/
+*.pem
+*.key
 
 # =========================
 # Test artifacts
