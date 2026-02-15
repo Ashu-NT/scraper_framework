@@ -396,25 +396,13 @@ class NormalizeUpworkAgeProcessor:
         if not s:
             return None
 
-        if "just now" in s or s == "now":
-            return 0.0
-        if "yesterday" in s:
-            return 24.0
-        if "today" in s:
-            return 0.0
+        quick_age = self._parse_quick_age_tokens(s)
+        if quick_age is not None:
+            return quick_age
 
-        m = _AGE_RE.search(s)
-        if m:
-            qty = _to_float(m.group(1), default=0.0)
-            unit = m.group(2)
-            if unit in {"minute", "minutes", "min"}:
-                return qty / 60.0
-            if unit in {"hour", "hours", "hr", "hrs"}:
-                return qty
-            if unit in {"day", "days"}:
-                return qty * 24.0
-            if unit in {"week", "weeks"}:
-                return qty * 24.0 * 7.0
+        unit_age = self._parse_unit_age(s)
+        if unit_age is not None:
+            return unit_age
 
         # If value is an ISO datetime, compute age from provided now.
         parsed_dt = self._parse_iso_datetime(text)
@@ -423,6 +411,32 @@ class NormalizeUpworkAgeProcessor:
             diff_h = (now_dt - parsed_dt).total_seconds() / 3600.0
             return max(diff_h, 0.0)
 
+        return None
+
+    def _parse_quick_age_tokens(self, lowered_text: str) -> Optional[float]:
+        if "just now" in lowered_text or lowered_text == "now":
+            return 0.0
+        if "yesterday" in lowered_text:
+            return 24.0
+        if "today" in lowered_text:
+            return 0.0
+        return None
+
+    def _parse_unit_age(self, lowered_text: str) -> Optional[float]:
+        m = _AGE_RE.search(lowered_text)
+        if not m:
+            return None
+
+        qty = _to_float(m.group(1), default=0.0)
+        unit = m.group(2)
+        if unit in {"minute", "minutes", "min"}:
+            return qty / 60.0
+        if unit in {"hour", "hours", "hr", "hrs"}:
+            return qty
+        if unit in {"day", "days"}:
+            return qty * 24.0
+        if unit in {"week", "weeks"}:
+            return qty * 24.0 * 7.0
         return None
 
     def _parse_iso_datetime(self, text: str) -> Optional[datetime]:

@@ -65,7 +65,23 @@ class CookieConsentStep:
         action = (params.get("cookie_action") or "auto").lower()
         prefer_reject = action in ("auto", "reject")
         timeout = float(params.get("cookie_timeout", 4))
+        css_priority, css_secondary, xp_priority, xp_secondary = self._selector_order(prefer_reject)
+        clicked = self._try_click_on_page(
+            driver=driver,
+            timeout=timeout,
+            css_selectors=css_priority + css_secondary,
+            xpath_selectors=xp_priority + xp_secondary,
+        )
+        if not clicked:
+            self._try_click_in_iframes(
+                driver=driver,
+                timeout=timeout,
+                css_selectors=css_priority + css_secondary,
+                xpath_selectors=xp_priority + xp_secondary,
+            )
+        params["_cookies_handled"] = True
 
+    def _selector_order(self, prefer_reject: bool) -> tuple[list[str], list[str], list[str], list[str]]:
         css_reject = ["#onetrust-reject-all-handler"]
         css_accept = ["#onetrust-accept-btn-handler"]
 
@@ -78,59 +94,62 @@ class CookieConsentStep:
             "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'agree')]",
         ]
 
-        def click(by, sel):
+        if prefer_reject:
+            return css_reject, css_accept, xp_reject, xp_accept
+        return css_accept, css_reject, xp_accept, xp_reject
+
+    def _try_click(self, driver: Any, by: Any, selector: str, timeout: float) -> bool:
+        try:
+            element = WebDriverWait(driver, timeout / 2).until(EC.element_to_be_clickable((by, selector)))
             try:
-                el = WebDriverWait(driver, timeout / 2).until(EC.element_to_be_clickable((by, sel)))
-                try:
-                    el.click()
-                except Exception:
-                    driver.execute_script("arguments[0].click();", el)
-                return True
+                element.click()
             except Exception:
-                return False
+                driver.execute_script("arguments[0].click();", element)
+            return True
+        except Exception:
+            return False
 
-        order = (
-            (css_reject, css_accept, xp_reject, xp_accept) if prefer_reject else (css_accept, css_reject, xp_accept, xp_reject)
-        )
+    def _try_click_on_page(
+        self,
+        driver: Any,
+        timeout: float,
+        css_selectors: list[str],
+        xpath_selectors: list[str],
+    ) -> bool:
+        for selector in css_selectors:
+            if self._try_click(driver, By.CSS_SELECTOR, selector, timeout):
+                return True
 
-        # main doc
-        for sel in order[0] + order[1]:
-            if click(By.CSS_SELECTOR, sel):
-                params["_cookies_handled"] = True
-                return
+        for selector in xpath_selectors:
+            if self._try_click(driver, By.XPATH, selector, timeout):
+                return True
+        return False
 
-        for xp in order[2] + order[3]:
-            if click(By.XPATH, xp):
-                params["_cookies_handled"] = True
-                return
-
-        # iframe fallback
+    def _try_click_in_iframes(
+        self,
+        driver: Any,
+        timeout: float,
+        css_selectors: list[str],
+        xpath_selectors: list[str],
+    ) -> bool:
         try:
             frames = driver.find_elements(By.CSS_SELECTOR, "iframe")
         except Exception:
-            frames = []
+            return False
 
-        for fr in frames[:10]:
+        for frame in frames[:10]:
             try:
-                driver.switch_to.frame(fr)
-                for sel in order[0] + order[1]:
-                    if click(By.CSS_SELECTOR, sel):
-                        driver.switch_to.default_content()
-                        params["_cookies_handled"] = True
-                        return
-                for xp in order[2] + order[3]:
-                    if click(By.XPATH, xp):
-                        driver.switch_to.default_content()
-                        params["_cookies_handled"] = True
-                        return
-                driver.switch_to.default_content()
+                driver.switch_to.frame(frame)
+                if self._try_click_on_page(driver, timeout, css_selectors, xpath_selectors):
+                    return True
             except Exception:
+                pass
+            finally:
                 try:
                     driver.switch_to.default_content()
                 except Exception:
                     pass
-
-        params["_cookies_handled"] = True
+        return False
 
 
 # WAIT FOR CONTENT

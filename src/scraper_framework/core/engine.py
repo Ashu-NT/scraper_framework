@@ -74,11 +74,7 @@ class ScrapeEngine:
         stream_buffer: List[Record] = []
         seen_dedupe_keys: Set[str] = set()
         chunks_flushed = 0
-        execution_mode = str(getattr(job, "execution_mode", "memory")).lower()
-        if execution_mode not in {"memory", "stream"}:
-            raise ValueError("job.execution_mode must be 'memory' or 'stream'")
-        stream_mode = execution_mode == "stream"
-        batch_size = max(1, int(getattr(job, "batch_size", 500)))
+        execution_mode, stream_mode, batch_size = self._resolve_execution(job)
 
         try:
             limiter = RateLimiter(job.delay_ms)
@@ -95,73 +91,34 @@ class ScrapeEngine:
             )
 
             while current and pages < job.max_pages:
-                self.log.info("Fetching page %s: %s", pages + 1, current.url)
-
-                page = self.fetcher.fetch(current)
-                report.pages_fetched += 1
-
-                cards = self.parser.parse_cards(page, self.adapter)
-                report.cards_found += len(cards)
-                self.log.info("Cards found: %s", len(cards))
-
-                for card in cards:
-                    rec = self.extract(card, page, job)
-                    if rec is None:
-                        report.records_skipped += 1
-                        report.bump_failure("extract_failed")
-                        continue
-
-                    # Optional enrichment step
-                    if self.enricher and self.enricher.should_enrich(rec):
-                        rec = self.enricher.enrich(rec, self.adapter)
-
-                    rec = self.normalizer.normalize(rec)
-
-                    vr = self.validator.validate(rec, job.required_fields)
-                    if not vr.ok:
-                        report.records_skipped += 1
-                        report.bump_failure(vr.reason)
-                        continue
-
-                    if stream_mode:
-                        stream_buffer.append(rec)
-                        if len(stream_buffer) >= batch_size:
-                            chunks_flushed += 1
-                            self._flush_stream_chunk(
-                                job=job,
-                                chunk_records=stream_buffer,
-                                seen_dedupe_keys=seen_dedupe_keys,
-                                report=report,
-                                chunk_index=chunks_flushed,
-                            )
-                            stream_buffer = []
-                    else:
-                        records.append(rec)
+                page, cards = self._fetch_and_parse_page(current, report, pages + 1)
+                chunks_flushed = self._collect_page_records(
+                    cards=cards,
+                    page=page,
+                    job=job,
+                    report=report,
+                    stream_mode=stream_mode,
+                    stream_buffer=stream_buffer,
+                    batch_size=batch_size,
+                    seen_dedupe_keys=seen_dedupe_keys,
+                    records=records,
+                    chunks_flushed=chunks_flushed,
+                )
 
                 current = self.parser.next_request(page, self.adapter, current)
                 pages += 1
 
                 limiter.sleep()
 
-            if stream_mode:
-                if stream_buffer:
-                    chunks_flushed += 1
-                    self._flush_stream_chunk(
-                        job=job,
-                        chunk_records=stream_buffer,
-                        seen_dedupe_keys=seen_dedupe_keys,
-                        report=report,
-                        chunk_index=chunks_flushed,
-                    )
-
-                # Keep legacy behavior for empty runs (create empty output/header where applicable).
-                if report.records_emitted == 0:
-                    self.sink.write(job, [])
-            else:
-                records = self.deduper.dedupe(records)
-                records = self._apply_processing(job, records, report)
-                report.records_emitted = len(records)
-                self.sink.write(job, records)
+            chunks_flushed = self._finalize_run(
+                job=job,
+                stream_mode=stream_mode,
+                stream_buffer=stream_buffer,
+                seen_dedupe_keys=seen_dedupe_keys,
+                report=report,
+                records=records,
+                chunks_flushed=chunks_flushed,
+            )
 
             self.log.info(
                 "Job done: mode=%s pages=%s cards=%s emitted=%s skipped=%s quarantined=%s chunks=%s",
@@ -178,6 +135,144 @@ class ScrapeEngine:
             self._cleanup()
 
         return report
+
+    def _resolve_execution(self, job: ScrapeJob) -> tuple[str, bool, int]:
+        execution_mode = str(getattr(job, "execution_mode", "memory")).lower()
+        if execution_mode not in {"memory", "stream"}:
+            raise ValueError("job.execution_mode must be 'memory' or 'stream'")
+        stream_mode = execution_mode == "stream"
+        batch_size = max(1, int(getattr(job, "batch_size", 500)))
+        return execution_mode, stream_mode, batch_size
+
+    def _fetch_and_parse_page(self, current: RequestSpec, report: ScrapeReport, page_index: int) -> tuple[Page, List[Any]]:
+        self.log.info("Fetching page %s: %s", page_index, current.url)
+        page = self.fetcher.fetch(current)
+        report.pages_fetched += 1
+        cards = self.parser.parse_cards(page, self.adapter)
+        report.cards_found += len(cards)
+        self.log.info("Cards found: %s", len(cards))
+        return page, cards
+
+    def _collect_page_records(
+        self,
+        cards: List[Any],
+        page: Page,
+        job: ScrapeJob,
+        report: ScrapeReport,
+        stream_mode: bool,
+        stream_buffer: List[Record],
+        batch_size: int,
+        seen_dedupe_keys: Set[str],
+        records: List[Record],
+        chunks_flushed: int,
+    ) -> int:
+        for card in cards:
+            record = self._build_valid_record(card, page, job, report)
+            if record is None:
+                continue
+            chunks_flushed = self._append_record(
+                job=job,
+                record=record,
+                stream_mode=stream_mode,
+                stream_buffer=stream_buffer,
+                batch_size=batch_size,
+                seen_dedupe_keys=seen_dedupe_keys,
+                report=report,
+                records=records,
+                chunks_flushed=chunks_flushed,
+            )
+        return chunks_flushed
+
+    def _build_valid_record(self, card: Any, page: Page, job: ScrapeJob, report: ScrapeReport) -> Optional[Record]:
+        record = self.extract(card, page, job)
+        if record is None:
+            report.records_skipped += 1
+            report.bump_failure("extract_failed")
+            return None
+
+        if self.enricher and self.enricher.should_enrich(record):
+            record = self.enricher.enrich(record, self.adapter)
+
+        record = self.normalizer.normalize(record)
+        validation = self.validator.validate(record, job.required_fields)
+        if not validation.ok:
+            report.records_skipped += 1
+            report.bump_failure(validation.reason)
+            return None
+        return record
+
+    def _append_record(
+        self,
+        job: ScrapeJob,
+        record: Record,
+        stream_mode: bool,
+        stream_buffer: List[Record],
+        batch_size: int,
+        seen_dedupe_keys: Set[str],
+        report: ScrapeReport,
+        records: List[Record],
+        chunks_flushed: int,
+    ) -> int:
+        if not stream_mode:
+            records.append(record)
+            return chunks_flushed
+
+        stream_buffer.append(record)
+        if len(stream_buffer) < batch_size:
+            return chunks_flushed
+
+        next_chunk = chunks_flushed + 1
+        self._flush_stream_chunk(
+            job=job,
+            chunk_records=stream_buffer,
+            seen_dedupe_keys=seen_dedupe_keys,
+            report=report,
+            chunk_index=next_chunk,
+        )
+        stream_buffer.clear()
+        return next_chunk
+
+    def _finalize_run(
+        self,
+        job: ScrapeJob,
+        stream_mode: bool,
+        stream_buffer: List[Record],
+        seen_dedupe_keys: Set[str],
+        report: ScrapeReport,
+        records: List[Record],
+        chunks_flushed: int,
+    ) -> int:
+        if stream_mode:
+            return self._finalize_stream_run(job, stream_buffer, seen_dedupe_keys, report, chunks_flushed)
+
+        deduped_records = self.deduper.dedupe(records)
+        processed_records = self._apply_processing(job, deduped_records, report)
+        report.records_emitted = len(processed_records)
+        self.sink.write(job, processed_records)
+        return chunks_flushed
+
+    def _finalize_stream_run(
+        self,
+        job: ScrapeJob,
+        stream_buffer: List[Record],
+        seen_dedupe_keys: Set[str],
+        report: ScrapeReport,
+        chunks_flushed: int,
+    ) -> int:
+        if stream_buffer:
+            chunks_flushed += 1
+            self._flush_stream_chunk(
+                job=job,
+                chunk_records=stream_buffer,
+                seen_dedupe_keys=seen_dedupe_keys,
+                report=report,
+                chunk_index=chunks_flushed,
+            )
+
+        # Keep legacy behavior for empty runs (create empty output/header where applicable).
+        if report.records_emitted == 0:
+            self.sink.write(job, [])
+        return chunks_flushed
 
     def _flush_stream_chunk(
         self,
