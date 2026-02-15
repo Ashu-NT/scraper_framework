@@ -3,6 +3,7 @@ from typing import Any, Optional, Protocol
 from scraper_framework.core.models import Page, RequestSpec
 from scraper_framework.parse.cards import Card
 
+
 class SiteAdapter(Protocol):
     """Protocol for site-specific scraping adapters."""
 

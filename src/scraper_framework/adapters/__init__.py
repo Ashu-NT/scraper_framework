@@ -3,6 +3,7 @@ from scraper_framework.adapters.sites.books_toscrape import BooksToScrapeAdapter
 from scraper_framework.adapters.sites.directory_generic import GenericDirectoryAdapter
 from scraper_framework.adapters.sites.dynamic_test import DynamicTestAdapter
 
+
 def register_all() -> None:
     register(BooksToScrapeAdapter())
     register(GenericDirectoryAdapter())
