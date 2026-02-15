@@ -3,6 +3,8 @@ job:
   name: "Demo: BooksToScrape"
   adapter: "books_toscrape"
   start_url: "https://books.toscrape.com/catalogue/page-1.html"
+  execution_mode: "stream"
+  batch_size: 10
   max_pages: 2
   delay_ms: 800
   dedupe_mode: "BY_SOURCE_URL"
@@ -12,3 +14,4 @@ job:
 sink:
   type: "csv"
   path: "output_books.csv"
+  write_mode: "overwrite"
