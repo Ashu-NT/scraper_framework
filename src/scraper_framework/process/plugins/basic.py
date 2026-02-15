@@ -86,6 +86,7 @@ class DropIfFieldEmptyProcessor:
         if not field_name:
             raise ValueError("drop_if_field_empty requires config.field")
 
+        value: Any
         if field_name == "source_url":
             value = record.source_url
         elif field_name == "id":
@@ -125,7 +126,7 @@ class FieldCoverageAnalyticsProcessor:
         fields = [str(f) for f in configured_fields if str(f).strip()]
 
         if not fields:
-            discovered = set()
+            discovered: set[str] = set()
             for rec in records:
                 discovered.update(rec.fields.keys())
             fields = sorted(discovered)

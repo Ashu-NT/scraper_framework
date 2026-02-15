@@ -5,12 +5,12 @@ Provides schema validation with clear error messages for job configurations.
 
 from __future__ import annotations
 
-from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+from scraper_framework.core.models import DedupeMode as CoreDedupeMode
 from scraper_framework.core.models import EnrichConfig as CoreEnrichConfig
 from scraper_framework.core.models import ProcessingConfig as CoreProcessingConfig
 from scraper_framework.core.models import ProcessingStage as CoreProcessingStage
@@ -18,13 +18,6 @@ from scraper_framework.core.models import (
     RequestSpec,
     ScrapeJob,
 )
-
-
-class DedupeMode(str, Enum):
-    """Enumeration for deduplication modes."""
-
-    BY_SOURCE_URL = "BY_SOURCE_URL"
-    BY_HASH = "BY_HASH"
 
 
 class JobConfig(BaseModel):
@@ -50,7 +43,7 @@ class JobConfig(BaseModel):
     )
     max_pages: int = Field(5, ge=1, le=1000, description="Maximum number of pages to scrape")
     delay_ms: int = Field(800, ge=0, le=60000, description="Delay between requests in milliseconds")
-    dedupe_mode: DedupeMode = Field(DedupeMode.BY_SOURCE_URL, description="Deduplication strategy")
+    dedupe_mode: CoreDedupeMode = Field(CoreDedupeMode.BY_SOURCE_URL, description="Deduplication strategy")
     required_fields: List[str] = Field(
         default_factory=lambda: ["name", "source_url"], description="Fields that must be present in scraped records"
     )
@@ -192,9 +185,11 @@ class ScraperConfig(BaseModel):
 
     job: JobConfig
     sink: Dict[str, Any] = Field(..., description="Sink configuration")
-    enrich: EnrichConfig = Field(default_factory=EnrichConfig)
-    processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
-    schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
+    enrich: EnrichConfig = Field(default_factory=lambda: EnrichConfig(enabled=False, fields=[]))
+    processing: ProcessingConfig = Field(
+        default_factory=lambda: ProcessingConfig(enabled=False, schema_version="1.0", stages=[])
+    )
+    schedule: ScheduleConfig = Field(default_factory=lambda: ScheduleConfig(enabled=False, interval_hours=24))
 
     @model_validator(mode="after")
     def validate_sink_config(self):
@@ -207,7 +202,7 @@ class ScraperConfig(BaseModel):
             if "path" not in sink_data:
                 raise ValueError('CSV sink requires "path" field')
             # Create and assign the validated model
-            self.sink = CsvSinkConfig(**sink_data)
+            self.sink = CsvSinkConfig(**sink_data).model_dump()
         elif sink_type == "google_sheets":
             # Validate Google Sheets sink
             required_fields = ["sheet_id"]
@@ -215,13 +210,13 @@ class ScraperConfig(BaseModel):
             if missing:
                 raise ValueError(f"Google Sheets sink missing required fields: {missing}")
             # Create and assign the validated model
-            self.sink = GoogleSheetsSinkConfig(**sink_data)
+            self.sink = GoogleSheetsSinkConfig(**sink_data).model_dump()
         elif sink_type == "jsonl":
             # Validate JSONL sink
             if "path" not in sink_data:
                 raise ValueError('JSONL sink requires "path" field')
             # Create and assign the validated model
-            self.sink = JsonlSinkConfig(**sink_data)
+            self.sink = JsonlSinkConfig(**sink_data).model_dump()
         else:
             raise ValueError(f'Unknown sink type: {sink_type}. Must be "csv" , "google_sheets" or "jsonl"')
 
@@ -325,7 +320,7 @@ def config_to_job_objects(config: ScraperConfig) -> tuple:
         field_schema=list(config.job.field_schema),
         enrich=enrich,
         processing=processing,
-        sink_config=config.sink.model_dump(),  # Convert model back to dict for framework
+        sink_config=dict(config.sink),
     )
 
     adapter_key = config.job.adapter

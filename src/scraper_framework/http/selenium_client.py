@@ -18,6 +18,7 @@ from scraper_framework.http.selenium_steps import (
     CookieConsentStep,
     RevealAndClickStep,
     ScrollStep,
+    SeleniumStep,
     WaitForSelectorStep,
     WindowStep,
 )
@@ -60,7 +61,7 @@ class SeleniumHttpClient:
 
         # Pipeline (order matters)
         # We wait AFTER scroll/click so the new cards have time to appear.
-        self.steps = [
+        self.steps: list[SeleniumStep] = [
             WindowStep(),
             CookieConsentStep(),
             # one action step per iteration

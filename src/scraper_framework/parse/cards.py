@@ -36,7 +36,12 @@ class HtmlCard:
     def get_attr(self, locator: str, attr: str) -> Optional[str]:
         """Get attribute value from a CSS selector."""
         el = self._root.select_one(locator)
-        return el.get(attr) if el and el.has_attr(attr) else None
+        if not el or not el.has_attr(attr):
+            return None
+        raw_value = el.get(attr)
+        if isinstance(raw_value, list):
+            return str(raw_value[0]) if raw_value else None
+        return str(raw_value) if raw_value is not None else None
 
     def get_value(self, locator: str) -> Any:
         """Get value from a CSS selector."""

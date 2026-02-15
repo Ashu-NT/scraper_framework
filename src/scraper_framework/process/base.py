@@ -29,21 +29,19 @@ def validate_records_schema(records: List[Record], schema_version: str) -> None:
     if schema_version != "1.0":
         raise ValueError(f"Unsupported processing schema_version: {schema_version}")
 
-    payload = {
-        "schema_version": schema_version,
-        "records": [
-            {
-                "id": r.id,
-                "source_url": r.source_url,
-                "scraped_at_utc": r.scraped_at_utc,
-                "fields": r.fields,
-            }
-            for r in records
-        ],
-    }
-
     try:
-        StagePayloadV1(**payload)
+        StagePayloadV1(
+            schema_version="1.0",
+            records=[
+                RecordSchemaV1(
+                    id=r.id,
+                    source_url=r.source_url,
+                    scraped_at_utc=r.scraped_at_utc,
+                    fields=r.fields,
+                )
+                for r in records
+            ],
+        )
     except ValidationError as e:
         raise ValueError(f"Processing schema validation failed: {e}") from e
 
