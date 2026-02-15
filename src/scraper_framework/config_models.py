@@ -5,7 +5,7 @@ Provides schema validation with clear error messages for job configurations.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
@@ -180,11 +180,14 @@ class ScheduleConfig(BaseModel):
         return self
 
 
+SinkConfig = Union[CsvSinkConfig, GoogleSheetsSinkConfig, JsonlSinkConfig]
+
+
 class ScraperConfig(BaseModel):
     """Root configuration model for scraper jobs."""
 
     job: JobConfig
-    sink: Dict[str, Any] = Field(..., description="Sink configuration")
+    sink: SinkConfig | Dict[str, Any] = Field(..., description="Sink configuration")
     enrich: EnrichConfig = Field(default_factory=lambda: EnrichConfig(enabled=False, fields=[]))
     processing: ProcessingConfig = Field(
         default_factory=lambda: ProcessingConfig(enabled=False, schema_version="1.0", stages=[])
@@ -194,6 +197,9 @@ class ScraperConfig(BaseModel):
     @model_validator(mode="after")
     def validate_sink_config(self):
         """Validate and convert sink configuration."""
+        if isinstance(self.sink, (CsvSinkConfig, GoogleSheetsSinkConfig, JsonlSinkConfig)):
+            return self
+
         sink_data = self.sink
         sink_type = sink_data.get("type")
 
@@ -202,7 +208,7 @@ class ScraperConfig(BaseModel):
             if "path" not in sink_data:
                 raise ValueError('CSV sink requires "path" field')
             # Create and assign the validated model
-            self.sink = CsvSinkConfig(**sink_data).model_dump()
+            self.sink = CsvSinkConfig(**sink_data)
         elif sink_type == "google_sheets":
             # Validate Google Sheets sink
             required_fields = ["sheet_id"]
@@ -210,13 +216,13 @@ class ScraperConfig(BaseModel):
             if missing:
                 raise ValueError(f"Google Sheets sink missing required fields: {missing}")
             # Create and assign the validated model
-            self.sink = GoogleSheetsSinkConfig(**sink_data).model_dump()
+            self.sink = GoogleSheetsSinkConfig(**sink_data)
         elif sink_type == "jsonl":
             # Validate JSONL sink
             if "path" not in sink_data:
                 raise ValueError('JSONL sink requires "path" field')
             # Create and assign the validated model
-            self.sink = JsonlSinkConfig(**sink_data).model_dump()
+            self.sink = JsonlSinkConfig(**sink_data)
         else:
             raise ValueError(f'Unknown sink type: {sink_type}. Must be "csv" , "google_sheets" or "jsonl"')
 
@@ -320,7 +326,11 @@ def config_to_job_objects(config: ScraperConfig) -> tuple:
         field_schema=list(config.job.field_schema),
         enrich=enrich,
         processing=processing,
-        sink_config=dict(config.sink),
+        sink_config=(
+            config.sink.model_dump()
+            if isinstance(config.sink, (CsvSinkConfig, GoogleSheetsSinkConfig, JsonlSinkConfig))
+            else dict(config.sink)
+        ),
     )
 
     adapter_key = config.job.adapter
