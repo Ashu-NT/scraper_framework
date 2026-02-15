@@ -19,7 +19,7 @@ processing:
 
 sink:
   type: "csv"
-  path: "output_books.csv"
+  path: "output/output_books.csv"
   write_mode: "overwrite"
 
 schedule:

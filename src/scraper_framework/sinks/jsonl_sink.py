@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import List
 from scraper_framework.core.models import Record, ScrapeJob
 from scraper_framework.sinks.base import Sink
@@ -17,6 +18,8 @@ class JsonlSink(Sink):
         path = job.sink_config.get("path", "output.jsonl")
         write_mode = str(job.sink_config.get("write_mode", "overwrite")).lower()
         execution_mode = str(getattr(job, "execution_mode", "memory")).lower()
+
+        self._ensure_parent_dir(path)
 
         if write_mode not in {"overwrite", "append"}:
             raise ValueError("jsonl sink write_mode must be 'overwrite' or 'append'")
@@ -53,3 +56,8 @@ class JsonlSink(Sink):
             return file_mode
 
         return "a" if write_mode == "append" else "w"
+
+    def _ensure_parent_dir(self, path: str) -> None:
+        parent = Path(path).parent
+        if str(parent) not in {"", "."}:
+            parent.mkdir(parents=True, exist_ok=True)

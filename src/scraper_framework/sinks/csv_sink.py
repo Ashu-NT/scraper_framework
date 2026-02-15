@@ -1,6 +1,7 @@
 from __future__ import annotations
 import csv
 import os
+from pathlib import Path
 from typing import List
 from scraper_framework.core.models import Record, ScrapeJob
 from scraper_framework.sinks.base import Sink
@@ -19,6 +20,8 @@ class CsvSink(Sink):
         path = job.sink_config.get("path", "output.csv")
         write_mode = str(job.sink_config.get("write_mode", "overwrite")).lower()
         execution_mode = str(getattr(job, "execution_mode", "memory")).lower()
+
+        self._ensure_parent_dir(path)
 
         if write_mode not in {"overwrite", "append"}:
             raise ValueError("csv sink write_mode must be 'overwrite' or 'append'")
@@ -70,3 +73,8 @@ class CsvSink(Sink):
 
     def _file_has_content(self, path: str) -> bool:
         return os.path.exists(path) and os.path.getsize(path) > 0
+
+    def _ensure_parent_dir(self, path: str) -> None:
+        parent = Path(path).parent
+        if str(parent) not in {"", "."}:
+            parent.mkdir(parents=True, exist_ok=True)

@@ -4,6 +4,7 @@ Tests for chunked streaming execution mode and sink write semantics.
 
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from unittest.mock import Mock
@@ -218,6 +219,50 @@ class TestStreamingSinkWrites(unittest.TestCase):
             self.assertEqual(lines[1]["source_url"], "https://example.com/2")
         finally:
             os.unlink(path)
+
+    def test_csv_sink_creates_parent_directory(self):
+        sink = CsvSink()
+        base_dir = tempfile.mkdtemp()
+        path = os.path.join(base_dir, "nested", "output_books.csv")
+
+        try:
+            job = ScrapeJob(
+                id="csv-parent-dir",
+                name="csv-parent-dir",
+                start=RequestSpec(url="https://example.com"),
+                execution_mode="memory",
+                batch_size=2,
+                required_fields={"source_url"},
+                field_schema=["name"],
+                sink_config={"type": "csv", "path": path, "write_mode": "overwrite"},
+            )
+
+            sink.write(job, [_record(1, "https://example.com/1", {"name": "a"})])
+            self.assertTrue(os.path.exists(path))
+        finally:
+            shutil.rmtree(base_dir, ignore_errors=True)
+
+    def test_jsonl_sink_creates_parent_directory(self):
+        sink = JsonlSink()
+        base_dir = tempfile.mkdtemp()
+        path = os.path.join(base_dir, "nested", "output_books.jsonl")
+
+        try:
+            job = ScrapeJob(
+                id="jsonl-parent-dir",
+                name="jsonl-parent-dir",
+                start=RequestSpec(url="https://example.com"),
+                execution_mode="memory",
+                batch_size=2,
+                required_fields={"source_url"},
+                field_schema=["name"],
+                sink_config={"type": "jsonl", "path": path, "write_mode": "overwrite"},
+            )
+
+            sink.write(job, [_record(1, "https://example.com/1", {"name": "a"})])
+            self.assertTrue(os.path.exists(path))
+        finally:
+            shutil.rmtree(base_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
