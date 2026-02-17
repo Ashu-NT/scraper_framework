@@ -231,7 +231,9 @@ sink:
 
 schedule:
   enabled: false
-  interval_hours: 24
+  interval_hours: 24             # option A: every N hours
+  # cron: "0 4 * * *"           # option B: daily at 04:00
+  # timezone: "Europe/Paris"    # timezone used by cron
 ```
 
 ---
@@ -455,6 +457,10 @@ Validation includes:
   - processing stage `on_error`
   - sink `write_mode` (csv/jsonl)
 - range checks (`max_pages`, `delay_ms`, `batch_size`, `interval_hours`)
+- schedule checks:
+  - `schedule.interval_hours` XOR `schedule.cron` when schedule is enabled
+  - if enabled and neither is set, scheduler defaults to `interval_hours=24`
+  - cron expression format validation (`minute hour day month day_of_week`)
 - cross-field checks (for example, `enrich.fields` in `field_schema`)
 
 ---
@@ -511,7 +517,9 @@ processing:
 
 schedule:
   enabled: bool = false
-  interval_hours: int(1..168) = 24
+  interval_hours: int(1..168) | null = null
+  cron: string | null = null   # 5-field cron, e.g. "0 4 * * *"
+  timezone: string = "UTC"     # used when cron is set
 ```
 
 ---

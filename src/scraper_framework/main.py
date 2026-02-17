@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from pydantic import ValidationError
 
@@ -57,9 +58,18 @@ def run_schedule(job: ScrapeJob, adapter_key: str, schedule_cfg: dict, job_path:
 
     scheduler = BlockingScheduler()
 
-    interval_hours = schedule_cfg.get("interval_hours", 24)
-    print(f"Scheduling job every {interval_hours} hours")
-    trigger = IntervalTrigger(hours=interval_hours)
+    cron_expr = str(schedule_cfg.get("cron", "") or "").strip()
+    trigger_description = ""
+    if cron_expr:
+        timezone = str(schedule_cfg.get("timezone", "UTC") or "UTC").strip() or "UTC"
+        trigger = CronTrigger.from_crontab(cron_expr, timezone=timezone)
+        trigger_description = f"cron='{cron_expr}' timezone='{timezone}'"
+    else:
+        interval_hours = schedule_cfg.get("interval_hours", 24)
+        trigger = IntervalTrigger(hours=interval_hours)
+        trigger_description = f"every {interval_hours} hours"
+
+    print(f"Scheduling job {trigger_description}")
 
     scheduler.add_job(
         run_one,
@@ -69,7 +79,7 @@ def run_schedule(job: ScrapeJob, adapter_key: str, schedule_cfg: dict, job_path:
         name=f"Scheduled scrape: {job.name}",
     )
 
-    print(f"Starting scheduled scraper for job '{job.name}' (every {interval_hours} hours)")
+    print(f"Starting scheduled scraper for job '{job.name}' ({trigger_description})")
     try:
         scheduler.start()
     except KeyboardInterrupt:

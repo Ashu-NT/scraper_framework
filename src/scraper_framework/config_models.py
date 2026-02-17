@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Literal, Optional, Union
 
 import yaml
+from apscheduler.triggers.cron import CronTrigger
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from scraper_framework.core.models import DedupeMode as CoreDedupeMode
@@ -171,12 +172,58 @@ class ScheduleConfig(BaseModel):
     """Configuration for scheduled execution."""
 
     enabled: bool = Field(False, description="Whether scheduling is enabled")
-    interval_hours: int = Field(24, ge=1, le=168, description="Interval between runs in hours")
+    interval_hours: Optional[int] = Field(
+        None,
+        ge=1,
+        le=168,
+        description="Interval between runs in hours (set either this or cron when schedule is enabled)",
+    )
+    cron: Optional[str] = Field(
+        None,
+        description='Cron expression (5 fields, e.g. "0 4 * * *")',
+    )
+    timezone: str = Field("UTC", description="Timezone for cron schedule")
+
+    @field_validator("cron")
+    @classmethod
+    def validate_cron_field(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cron = str(v).strip()
+        return cron or None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone_field(cls, v: str) -> str:
+        tz = str(v or "").strip()
+        if not tz:
+            raise ValueError("timezone cannot be empty")
+        return tz
 
     @model_validator(mode="after")
     def validate_schedule_config(self):
-        if self.enabled and self.interval_hours < 1:
-            raise ValueError("interval_hours must be at least 1 when scheduling is enabled")
+        if not self.enabled:
+            return self
+
+        has_interval = self.interval_hours is not None
+        has_cron = bool(self.cron)
+
+        if has_interval and has_cron:
+            raise ValueError('Set either schedule.interval_hours or schedule.cron, not both')
+
+        if not has_interval and not has_cron:
+            # Backward-compatible default for enabled schedules.
+            self.interval_hours = 24
+            return self
+
+        if has_cron:
+            try:
+                CronTrigger.from_crontab(self.cron or "", timezone=self.timezone)
+            except Exception as exc:
+                raise ValueError(
+                    'schedule.cron must be a valid 5-field cron expression, e.g. "0 4 * * *"'
+                ) from exc
+
         return self
 
 
@@ -192,7 +239,9 @@ class ScraperConfig(BaseModel):
     processing: ProcessingConfig = Field(
         default_factory=lambda: ProcessingConfig(enabled=False, schema_version="1.0", stages=[])
     )
-    schedule: ScheduleConfig = Field(default_factory=lambda: ScheduleConfig(enabled=False, interval_hours=24))
+    schedule: ScheduleConfig = Field(
+        default_factory=lambda: ScheduleConfig(enabled=False, interval_hours=24, cron=None, timezone="UTC")
+    )
 
     @model_validator(mode="after")
     def validate_sink_config(self):

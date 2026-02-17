@@ -45,3 +45,5 @@ sink:
 schedule:
   enabled: false
   interval_hours: 24
+  # cron: "0 4 * * *"
+  # timezone: "UTC"

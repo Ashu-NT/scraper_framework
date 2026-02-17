@@ -161,6 +161,40 @@ class TestConfigValidation(unittest.TestCase):
             ScraperConfig(**config_data)
         self.assertIn("must be declared in job.field_schema", str(cm.exception))
 
+    def test_valid_cron_schedule_config(self):
+        """Test valid cron schedule configuration."""
+        config_data = {
+            "job": {"id": "test", "name": "Test Job", "adapter": "test_adapter", "start_url": "https://example.com"},
+            "sink": {"type": "csv", "path": "test.csv"},
+            "schedule": {"enabled": True, "cron": "0 4 * * *", "timezone": "Europe/Paris"},
+        }
+        config = ScraperConfig(**config_data)
+        self.assertEqual(config.schedule.cron, "0 4 * * *")
+        self.assertEqual(config.schedule.timezone, "Europe/Paris")
+        self.assertIsNone(config.schedule.interval_hours)
+
+    def test_invalid_cron_schedule_config(self):
+        """Test invalid cron expression is rejected."""
+        config_data = {
+            "job": {"id": "test", "name": "Test Job", "adapter": "test_adapter", "start_url": "https://example.com"},
+            "sink": {"type": "csv", "path": "test.csv"},
+            "schedule": {"enabled": True, "cron": "invalid_cron"},
+        }
+        with self.assertRaises(ValueError) as cm:
+            ScraperConfig(**config_data)
+        self.assertIn("schedule.cron must be a valid 5-field cron expression", str(cm.exception))
+
+    def test_schedule_rejects_interval_and_cron_together(self):
+        """Test schedule rejects simultaneous interval and cron settings."""
+        config_data = {
+            "job": {"id": "test", "name": "Test Job", "adapter": "test_adapter", "start_url": "https://example.com"},
+            "sink": {"type": "csv", "path": "test.csv"},
+            "schedule": {"enabled": True, "interval_hours": 24, "cron": "0 4 * * *"},
+        }
+        with self.assertRaises(ValueError) as cm:
+            ScraperConfig(**config_data)
+        self.assertIn("Set either schedule.interval_hours or schedule.cron, not both", str(cm.exception))
+
 
 class TestAdapterRegistry(unittest.TestCase):
     """Test adapter registry functionality."""

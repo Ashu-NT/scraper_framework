@@ -16,4 +16,6 @@ sink:
 # Schedule configuration for automated scraping
 schedule:
   enabled: true
-  interval_hours: 24  # Run every 24 hours
+  cron: "0 4 * * *"     # Run daily at 04:00
+  timezone: "UTC"
+  # interval_hours: 24    # Alternative to cron (set either interval_hours or cron)
