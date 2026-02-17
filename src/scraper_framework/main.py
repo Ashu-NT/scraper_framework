@@ -37,9 +37,6 @@ def load_job(path: str) -> tuple[ScrapeJob, str, dict]:
 
 def run_one(job: ScrapeJob, adapter_key: str) -> None:
     """Run a single scraping job."""
-    setup_logging("configs/logging.yaml")
-    register_all()
-
     adapter = get_adapter(adapter_key)
 
     factory = ComponentFactory(http_timeout_s=30)
@@ -95,6 +92,10 @@ def main() -> None:
         print(f"Configuration loading failed: {e}")
         raise SystemExit(1)
 
+    setup_logging("configs/logging.yaml")
+    register_all()
+
+    
     if schedule_cfg:
         print("Running in scheduled mode")
         run_schedule(job, adapter_key, schedule_cfg, job_path)
