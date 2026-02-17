@@ -2,6 +2,7 @@ job:
   id: "demo_dynamic"
   name: "Demo: Dynamic Content with Selenium"
   adapter: "dynamic_test"
+  dynamic_engine: "selenium"  # selenium | playwright
   start_url: "https://www.livescore.com/en"
   method: "GET"
   execution_mode: "stream"

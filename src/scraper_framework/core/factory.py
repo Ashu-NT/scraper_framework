@@ -19,6 +19,8 @@ from scraper_framework.process.runner import ProcessingRunner
 from scraper_framework.sinks.base import Sink
 from scraper_framework.sinks.csv_sink import CsvSink
 from scraper_framework.sinks.gsheet_sink import GoogleSheetsSink
+from scraper_framework.state.base import IncrementalStateStore
+from scraper_framework.state.sqlite_store import SQLiteIncrementalStateStore
 from scraper_framework.transform.dedupe import DedupeStrategy, HashDedupeStrategy, UrlDedupeStrategy
 from scraper_framework.transform.normalizers import DefaultNormalizer, Normalizer
 from scraper_framework.transform.validators import RequiredFieldsValidator, Validator
@@ -35,6 +37,7 @@ class BuiltComponents:
     validator: Validator
     enricher: Optional[DetailPageEnricher]
     processor_runner: ProcessingRunner
+    state_store: Optional[IncrementalStateStore]
 
 
 class ComponentFactory:
@@ -58,7 +61,7 @@ class ComponentFactory:
             A container with all built components.
         """
         client = self._http_client()
-        fetcher = self._fetcher(client, adapter)
+        fetcher = self._fetcher(job, client, adapter)
         parser = self._parser(adapter)
         deduper = self._deduper(job)
         normalizer = self._normalizer()
@@ -66,6 +69,7 @@ class ComponentFactory:
         sink = self._sink(job)
         enricher = self._enricher(job, fetcher)
         processor_runner = self._processor_runner()
+        state_store = self._state_store(job)
 
         engine = ScrapeEngine(
             fetcher=fetcher,
@@ -77,6 +81,7 @@ class ComponentFactory:
             sink=sink,
             enricher=enricher,
             processor_runner=processor_runner,
+            state_store=state_store,
         )
 
         return BuiltComponents(
@@ -89,6 +94,7 @@ class ComponentFactory:
             validator=validator,
             enricher=enricher,
             processor_runner=processor_runner,
+            state_store=state_store,
         )
 
     # ---------- Builders (private) ----------
@@ -97,7 +103,7 @@ class ComponentFactory:
         """Create the HTTP client."""
         return RequestsHttpClient(timeout_s=self.http_timeout_s)
 
-    def _fetcher(self, client: RequestsHttpClient, adapter: SiteAdapter) -> FetchStrategy:
+    def _fetcher(self, job: ScrapeJob, client: RequestsHttpClient, adapter: SiteAdapter) -> FetchStrategy:
         """Create the fetch strategy based on adapter mode."""
         mode = (adapter.mode() or "").upper()
         if mode == "JSON_API":
@@ -105,11 +111,19 @@ class ComponentFactory:
 
         # For dynamic pages rendered by JavaScript, use a Selenium-backed HTTP client.
         if mode == "DYNAMIC":
-            # Import locally to avoid requiring selenium unless used.
-            from scraper_framework.http.selenium_client import SeleniumHttpClient
+            dynamic_engine = str(getattr(job, "dynamic_engine", "selenium") or "selenium").strip().lower()
+            if dynamic_engine == "playwright":
+                from scraper_framework.http.playwright_client import PlaywrightHttpClient
 
-            selenium_client = SeleniumHttpClient(timeout_s=self.http_timeout_s)
-            return StaticHtmlFetchStrategy(selenium_client)
+                playwright_client = PlaywrightHttpClient(timeout_s=self.http_timeout_s)
+                return StaticHtmlFetchStrategy(playwright_client)
+            if dynamic_engine == "selenium":
+                # Import locally to avoid requiring selenium unless used.
+                from scraper_framework.http.selenium_client import SeleniumHttpClient
+
+                selenium_client = SeleniumHttpClient(timeout_s=self.http_timeout_s)
+                return StaticHtmlFetchStrategy(selenium_client)
+            raise ValueError(f"Unsupported dynamic engine: {dynamic_engine}")
 
         return StaticHtmlFetchStrategy(client)
 
@@ -160,3 +174,16 @@ class ComponentFactory:
     def _processor_runner(self) -> ProcessingRunner:
         """Create the processing pipeline runner with built-in plugins."""
         return ProcessingRunner(registry=create_default_registry())
+
+    def _state_store(self, job: ScrapeJob) -> Optional[IncrementalStateStore]:
+        """Create incremental state store when enabled."""
+        incremental_cfg = getattr(job, "incremental", None)
+        if not incremental_cfg or not incremental_cfg.enabled:
+            return None
+
+        backend = str(getattr(incremental_cfg, "backend", "sqlite") or "sqlite").strip().lower()
+        if backend != "sqlite":
+            raise ValueError(f"Unsupported incremental backend: {backend}")
+
+        state_path = str(getattr(incremental_cfg, "state_path", "output/state.db") or "output/state.db")
+        return SQLiteIncrementalStateStore(path=state_path)

@@ -19,3 +19,11 @@ schedule:
   cron: "0 4 * * *"     # Run daily at 04:00
   timezone: "UTC"
   # interval_hours: 24    # Alternative to cron (set either interval_hours or cron)
+
+incremental:
+  enabled: true
+  backend: "sqlite"
+  state_path: "output/state.db"
+  mode: "changed_only"
+  resume: true
+  checkpoint_every_pages: 1

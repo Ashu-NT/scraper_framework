@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 
 from scraper_framework.core.models import DedupeMode as CoreDedupeMode
 from scraper_framework.core.models import EnrichConfig as CoreEnrichConfig
+from scraper_framework.core.models import IncrementalConfig as CoreIncrementalConfig
 from scraper_framework.core.models import ProcessingConfig as CoreProcessingConfig
 from scraper_framework.core.models import ProcessingStage as CoreProcessingStage
 from scraper_framework.core.models import (
@@ -45,6 +46,10 @@ class JobConfig(BaseModel):
     max_pages: int = Field(5, ge=1, le=1000, description="Maximum number of pages to scrape")
     delay_ms: int = Field(800, ge=0, le=60000, description="Delay between requests in milliseconds")
     dedupe_mode: CoreDedupeMode = Field(CoreDedupeMode.BY_SOURCE_URL, description="Deduplication strategy")
+    dynamic_engine: Literal["selenium", "playwright"] = Field(
+        "selenium",
+        description="Browser engine for DYNAMIC adapters",
+    )
     required_fields: List[str] = Field(
         default_factory=lambda: ["name", "source_url"], description="Fields that must be present in scraped records"
     )
@@ -227,6 +232,31 @@ class ScheduleConfig(BaseModel):
         return self
 
 
+class IncrementalConfigModel(BaseModel):
+    """Configuration for incremental caching and resume behavior."""
+
+    enabled: bool = Field(False, description="Whether incremental mode is enabled")
+    backend: Literal["sqlite"] = Field("sqlite", description="State backend")
+    state_path: str = Field("output/state.db", description="Path to sqlite state database")
+    mode: Literal["all", "new_only", "changed_only"] = Field(
+        "changed_only",
+        description="Incremental emit mode",
+    )
+    resume: bool = Field(True, description="Resume from latest checkpoint when available")
+    checkpoint_every_pages: int = Field(
+        1,
+        ge=1,
+        le=1000,
+        description="Persist checkpoint every N pages",
+    )
+    full_refresh_every_runs: Optional[int] = Field(
+        None,
+        ge=1,
+        le=1000000,
+        description="Force full refresh every N runs",
+    )
+
+
 SinkConfig = Union[CsvSinkConfig, GoogleSheetsSinkConfig, JsonlSinkConfig]
 
 
@@ -241,6 +271,17 @@ class ScraperConfig(BaseModel):
     )
     schedule: ScheduleConfig = Field(
         default_factory=lambda: ScheduleConfig(enabled=False, interval_hours=24, cron=None, timezone="UTC")
+    )
+    incremental: IncrementalConfigModel = Field(
+        default_factory=lambda: IncrementalConfigModel(
+            enabled=False,
+            backend="sqlite",
+            state_path="output/state.db",
+            mode="changed_only",
+            resume=True,
+            checkpoint_every_pages=1,
+            full_refresh_every_runs=None,
+        )
     )
 
     @model_validator(mode="after")
@@ -362,6 +403,16 @@ def config_to_job_objects(config: ScraperConfig) -> tuple:
         ],
     )
 
+    incremental = CoreIncrementalConfig(
+        enabled=config.incremental.enabled,
+        backend=config.incremental.backend,
+        state_path=config.incremental.state_path,
+        mode=config.incremental.mode,
+        resume=config.incremental.resume,
+        checkpoint_every_pages=config.incremental.checkpoint_every_pages,
+        full_refresh_every_runs=config.incremental.full_refresh_every_runs,
+    )
+
     job = ScrapeJob(
         id=config.job.id,
         name=config.job.name,
@@ -373,8 +424,10 @@ def config_to_job_objects(config: ScraperConfig) -> tuple:
         required_fields=set(config.job.required_fields),
         dedupe_mode=config.job.dedupe_mode,
         field_schema=list(config.job.field_schema),
+        dynamic_engine=config.job.dynamic_engine,
         enrich=enrich,
         processing=processing,
+        incremental=incremental,
         sink_config=(
             config.sink.model_dump()
             if isinstance(config.sink, (CsvSinkConfig, GoogleSheetsSinkConfig, JsonlSinkConfig))

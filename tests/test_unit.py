@@ -6,6 +6,8 @@ Fast, focused tests for individual components.
 import unittest
 from unittest.mock import Mock
 
+from pydantic import ValidationError
+
 from src.scraper_framework.adapters.registry import get, get_registered_adapters, register
 from src.scraper_framework.config_models import ScraperConfig
 from src.scraper_framework.core.models import Record
@@ -194,6 +196,46 @@ class TestConfigValidation(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             ScraperConfig(**config_data)
         self.assertIn("Set either schedule.interval_hours or schedule.cron, not both", str(cm.exception))
+
+    def test_valid_incremental_config(self):
+        """Test valid incremental configuration."""
+        config_data = {
+            "job": {
+                "id": "test",
+                "name": "Test Job",
+                "adapter": "test_adapter",
+                "start_url": "https://example.com",
+                "dynamic_engine": "playwright",
+            },
+            "sink": {"type": "csv", "path": "test.csv"},
+            "incremental": {
+                "enabled": True,
+                "backend": "sqlite",
+                "state_path": "output/state.db",
+                "mode": "changed_only",
+                "resume": True,
+                "checkpoint_every_pages": 1,
+            },
+        }
+        config = ScraperConfig(**config_data)
+        self.assertTrue(config.incremental.enabled)
+        self.assertEqual(config.incremental.backend, "sqlite")
+        self.assertEqual(config.job.dynamic_engine, "playwright")
+
+    def test_invalid_dynamic_engine(self):
+        """Test invalid dynamic engine value is rejected."""
+        config_data = {
+            "job": {
+                "id": "test",
+                "name": "Test Job",
+                "adapter": "test_adapter",
+                "start_url": "https://example.com",
+                "dynamic_engine": "invalid_engine",
+            },
+            "sink": {"type": "csv", "path": "test.csv"},
+        }
+        with self.assertRaises(ValidationError):
+            ScraperConfig(**config_data)
 
 
 class TestAdapterRegistry(unittest.TestCase):

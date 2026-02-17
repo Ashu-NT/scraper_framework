@@ -4,9 +4,10 @@ A config-driven scraping framework with clean extension points for:
 
 - Static HTML scraping (Requests + BeautifulSoup)
 - JSON API scraping
-- Dynamic rendering with Selenium
+- Dynamic rendering with Selenium or Playwright
 - Optional detail-page enrichment
 - Post-scrape processing pipeline (business rules + analytics)
+- Incremental caching + checkpoint resume for scheduled runs
 - Output sinks: CSV, JSONL, Google Sheets
 - Streaming/chunked execution for large runs
 
@@ -435,11 +436,48 @@ For enrichable fields, adapter selectors should use `detail:` prefixes, for exam
 
 Use adapter mode `DYNAMIC` for JS-rendered pages.
 
+Choose browser engine per job:
+
+```yaml
+job:
+  dynamic_engine: "selenium"  # selenium | playwright
+```
+
 Common `job.params` keys:
 
 - `wait_selector`
 - `wait_time`
 - `click_selectors`
+
+When using Playwright, install browser binaries once:
+
+```bash
+python -m playwright install chromium
+```
+
+---
+
+## Incremental Caching and Resume
+
+Use incremental mode to emit only fresh/changed records across scheduled runs.
+
+```yaml
+incremental:
+  enabled: true
+  backend: "sqlite"
+  state_path: "output/state.db"
+  mode: "changed_only"        # all | new_only | changed_only
+  resume: true
+  checkpoint_every_pages: 1
+  full_refresh_every_runs: 30
+```
+
+Behavior:
+
+- persists record state by dedupe key + content hash
+- skips unchanged records when `mode=changed_only`
+- supports checkpoint resume for interrupted runs
+- optional periodic full refresh (`full_refresh_every_runs`)
 
 ---
 
@@ -452,6 +490,7 @@ Validation includes:
 - enum checks:
   - `dedupe_mode`
   - `execution_mode`
+  - `dynamic_engine`
   - sink `type`
   - processing stage `type`
   - processing stage `on_error`
@@ -482,6 +521,7 @@ job:
   max_pages: int(1..1000) = 5
   delay_ms: int(0..60000) = 800
   dedupe_mode: BY_SOURCE_URL|BY_HASH = BY_SOURCE_URL
+  dynamic_engine: selenium|playwright = selenium
   required_fields: [string]
   field_schema: [string]
 
@@ -520,6 +560,15 @@ schedule:
   interval_hours: int(1..168) | null = null
   cron: string | null = null   # 5-field cron, e.g. "0 4 * * *"
   timezone: string = "UTC"     # used when cron is set
+
+incremental:
+  enabled: bool = false
+  backend: sqlite = sqlite
+  state_path: string = output/state.db
+  mode: all|new_only|changed_only = changed_only
+  resume: bool = true
+  checkpoint_every_pages: int(1..1000) = 1
+  full_refresh_every_runs: int(1..) | null = null
 ```
 
 ---
@@ -544,6 +593,7 @@ Logs include:
 - retry + backoff in HTTP layer
 - rate limiting between requests
 - dedupe strategies (`BY_SOURCE_URL`, `BY_HASH`)
+- incremental caching and checkpoint resume (optional)
 - non-destructive Google Sheets header handling
 - processing error policies (`fail`, `skip`, `quarantine`)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 
 class DedupeMode(str, Enum):
@@ -51,6 +51,19 @@ class ProcessingConfig:
 
 
 @dataclass(frozen=True)
+class IncrementalConfig:
+    """Configuration for incremental caching/checkpoint behavior."""
+
+    enabled: bool = False
+    backend: str = "sqlite"  # sqlite
+    state_path: str = "output/state.db"
+    mode: str = "changed_only"  # all | new_only | changed_only
+    resume: bool = True
+    checkpoint_every_pages: int = 1
+    full_refresh_every_runs: Optional[int] = None
+
+
+@dataclass(frozen=True)
 class ScrapeJob:
     """Configuration for a scraping job."""
 
@@ -64,8 +77,10 @@ class ScrapeJob:
     required_fields: Set[str] = field(default_factory=lambda: {"name", "source_url"})
     dedupe_mode: DedupeMode = DedupeMode.BY_SOURCE_URL
     field_schema: List[str] = field(default_factory=list)
+    dynamic_engine: str = "selenium"  # selenium | playwright
     enrich: EnrichConfig = field(default_factory=EnrichConfig)
     processing: ProcessingConfig = field(default_factory=ProcessingConfig)
+    incremental: IncrementalConfig = field(default_factory=IncrementalConfig)
     sink_config: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -105,6 +120,7 @@ class ScrapeReport:
     cards_found: int = 0
     records_emitted: int = 0
     records_skipped: int = 0
+    records_skipped_incremental: int = 0
     records_quarantined: int = 0
     failures: Dict[str, int] = field(default_factory=dict)
     processing_stage_metrics: Dict[str, Dict[str, Any]] = field(default_factory=dict)

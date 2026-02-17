@@ -2,6 +2,7 @@ job:
   id: "client_job_01"
   name: "Client Scraping Job"
   adapter: "your_adapter_key"
+  dynamic_engine: "selenium"   # for DYNAMIC adapters: selenium | playwright
   start_url: "https://example.com"
   method: "GET"
   execution_mode: "stream"
@@ -47,3 +48,12 @@ schedule:
   interval_hours: 24
   # cron: "0 4 * * *"
   # timezone: "UTC"
+
+incremental:
+  enabled: false
+  backend: "sqlite"
+  state_path: "output/state.db"
+  mode: "changed_only"
+  resume: true
+  checkpoint_every_pages: 1
+  # full_refresh_every_runs: 30
